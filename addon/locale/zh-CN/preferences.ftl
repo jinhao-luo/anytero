@@ -13,9 +13,12 @@ pref-object-type-placeholder = 选择对象类型...
 
 pref-sync-header = 同步选项
 pref-sync-mode-label = 同步模式
-pref-sync-mode-realtime = 实时（注释变更时自动同步）
-pref-sync-mode-manual = 仅手动
-pref-sync-mode-both = 两者（实时 + 手动触发）
+pref-sync-mode-realtime =
+    .label = 实时（注释变更时自动同步）
+pref-sync-mode-manual =
+    .label = 仅手动
+pref-sync-mode-both =
+    .label = 两者（实时 + 手动触发）
 pref-sync-now-button = 立即同步
 pref-setup-button = 重新运行设置向导
 

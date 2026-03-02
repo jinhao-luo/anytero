@@ -75,7 +75,7 @@
       data-l10n-id="pref-sync-mode-label"
       style="min-width: 6em;"
     ></html:label>
-    <menulist id="anytero-pref-sync-mode" preference="syncMode">
+    <menulist id="anytero-pref-sync-mode" preference="syncMode" style="flex: 1;">
       <menupopup>
         <menuitem value="realtime" data-l10n-id="pref-sync-mode-realtime" />
         <menuitem value="manual" data-l10n-id="pref-sync-mode-manual" />
@@ -92,6 +92,7 @@
     />
     <button
       id="anytero-pref-setup"
+      style="margin-left: 8px;"
       data-l10n-id="pref-setup-button"
       oncommand="Zotero.__addonInstance__.hooks.onPrefsEvent('setup', { window })"
     />

@@ -13,9 +13,12 @@ pref-object-type-placeholder = Select an object type...
 
 pref-sync-header = Sync Options
 pref-sync-mode-label = Sync Mode
-pref-sync-mode-realtime = Real-time (sync on annotation changes)
-pref-sync-mode-manual = Manual only
-pref-sync-mode-both = Both (real-time + manual trigger)
+pref-sync-mode-realtime =
+    .label = Real-time (sync on annotation changes)
+pref-sync-mode-manual =
+    .label = Manual only
+pref-sync-mode-both =
+    .label = Both (real-time + manual trigger)
 pref-sync-now-button = Sync Now
 pref-setup-button = Re-run Setup Wizard
 
