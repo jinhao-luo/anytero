@@ -5,6 +5,7 @@ export interface SpaceConfig {
   spaceId: string;
   typeKey: string;
   relations: {
+    zoteroLink: string;
     authors: string;
     year: string;
     doi: string;
@@ -49,6 +50,7 @@ function buildProperties(item: ZoteroItem, config: SpaceConfig): Record<string, 
     .join("; ");
 
   return {
+    [rel.zoteroLink]: `zotero://select/library/items/${item.key}`,
     [rel.authors]: authorStr || null,
     [rel.year]: item.year ?? null,
     [rel.doi]: item.doi ?? null,

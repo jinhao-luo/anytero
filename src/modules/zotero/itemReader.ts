@@ -7,6 +7,7 @@ export interface ZoteroCreator {
 export interface ZoteroAnnotation {
   id: number;
   key: string;
+  attachmentKey: string;
   annotationType: "highlight" | "note" | "image" | "ink" | "underline";
   text: string | null;
   comment: string | null;
@@ -48,7 +49,7 @@ export class ItemReader {
       const att = Zotero.Items.get(attId);
       if (!att || !att.isPDFAttachment()) continue;
       for (const ann of att.getAnnotations() as Zotero.Item[]) {
-        annotations.push(this._toZoteroAnnotation(ann));
+        annotations.push(this._toZoteroAnnotation(ann, att.key));
       }
     }
 
@@ -109,10 +110,11 @@ export class ItemReader {
     };
   }
 
-  private _toZoteroAnnotation(ann: Zotero.Item): ZoteroAnnotation {
+  private _toZoteroAnnotation(ann: Zotero.Item, attachmentKey: string): ZoteroAnnotation {
     return {
       id: ann.id,
       key: ann.key,
+      attachmentKey,
       annotationType: ann.annotationType as ZoteroAnnotation["annotationType"],
       text: ann.annotationText ?? null,
       comment: ann.annotationComment ?? null,

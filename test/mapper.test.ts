@@ -5,8 +5,9 @@ import type { ZoteroItem } from "../src/modules/zotero/itemReader";
 
 const testConfig: SpaceConfig = {
   spaceId: "space-abc",
-  typeKey: "zotero_item",
+  typeKey: "book_note",
   relations: {
+    zoteroLink: "rel_zoteroLink",
     authors: "rel_authors",
     year: "rel_year",
     doi: "rel_doi",
@@ -41,7 +42,7 @@ describe("mapper", function () {
   describe("toCreatePayload", function () {
     it("includes type_key from config", function () {
       const payload = toCreatePayload(makeItem(), "body", testConfig);
-      assert.strictEqual(payload.type_key, "zotero_item");
+      assert.strictEqual(payload.type_key, "book_note");
     });
 
     it("sets name from item title", function () {
@@ -52,6 +53,11 @@ describe("mapper", function () {
     it("sets body", function () {
       const payload = toCreatePayload(makeItem(), "## Annotations\ntext", testConfig);
       assert.strictEqual(payload.body, "## Annotations\ntext");
+    });
+
+    it("maps zoteroLink relation key as zotero://select URL", function () {
+      const payload = toCreatePayload(makeItem({ key: "ITEM001" }), "", testConfig);
+      assert.strictEqual(payload.properties!["rel_zoteroLink"], "zotero://select/library/items/ITEM001");
     });
 
     it("maps authors relation key with 'LastName, FirstName' format", function () {
@@ -173,6 +179,7 @@ describe("mapper", function () {
     it("includes all relation properties", function () {
       const payload = toUpdatePayload(makeItem(), "", testConfig);
       const props = payload.properties!;
+      assert.property(props, "rel_zoteroLink");
       assert.property(props, "rel_authors");
       assert.property(props, "rel_year");
       assert.property(props, "rel_doi");

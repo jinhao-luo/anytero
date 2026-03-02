@@ -27,6 +27,8 @@ Run `direnv allow` after cloning to activate the environment. The `zotero` layou
 
 - `npm run build` — bundle + type-check (esbuild + `tsc --noEmit`)
 - `npm start` — hot-reload dev server (requires Zotero path in `.env`)
+- `npm run test:unit` — run unit tests (mocha + tsx, no Zotero needed)
+- `npm test` — integration tests via `zotero-plugin test`, requires Zotero running (fails otherwise)
 - Output goes to `.scaffold/build/`
 
 ## Module Layout
@@ -44,6 +46,11 @@ src/modules/sync/       — syncEngine (orchestration), syncState (ID mapping pe
 - `item.parentID` is `number | false | null` — check truthiness before using as `number`
 - `Zotero.Items.getAll()` typed as returning IDs; double-cast via `unknown` when treating as `Zotero.Item[]`
 
+## Zotero URI Schemes
+
+- `zotero://select/library/items/KEY` — opens and selects item in Zotero
+- `zotero://open-pdf/library/items/ATTKEY?page=PAGE&annotation=ANNKEY` — opens PDF at annotation
+
 ## AnyType API
 
 - Local REST API at `http://127.0.0.1:31009/v1` (desktop app must be running)
@@ -52,4 +59,4 @@ src/modules/sync/       — syncEngine (orchestration), syncState (ID mapping pe
 
 ## Data Model
 
-One AnyType object per Zotero item (paper/book). All annotations for that item are rendered as Markdown in the object body. Sync state (Zotero key → AnyType object ID) is persisted as JSON in `Zotero.Prefs`.
+AnyType object type: `Book Note` (one per Zotero item). Object has a `Zotero Link` property (`zotero://select/...`). Body lists annotations as markdown links: `[text](zotero://open-pdf/library/items/ATTKEY?page=PAGE&annotation=KEY)`. Sync state (Zotero key → AnyType object ID) is persisted as JSON in `Zotero.Prefs`.

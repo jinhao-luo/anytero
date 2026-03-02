@@ -1,12 +1,12 @@
 import type { ZoteroAnnotation } from "../zotero/itemReader";
 
-const TYPE_LABEL: Record<ZoteroAnnotation["annotationType"], string> = {
-  highlight: "Highlight",
-  underline: "Underline",
-  note: "Note",
-  image: "Image",
-  ink: "Ink",
-};
+function buildAnnotationLink(ann: ZoteroAnnotation): string {
+  const base = `zotero://open-pdf/library/items/${ann.attachmentKey}`;
+  const params = new URLSearchParams();
+  if (ann.pageLabel) params.set("page", ann.pageLabel);
+  params.set("annotation", ann.key);
+  return `${base}?${params.toString()}`;
+}
 
 export function renderAnnotationBody(annotations: ZoteroAnnotation[]): string {
   if (annotations.length === 0) return "";
@@ -14,18 +14,20 @@ export function renderAnnotationBody(annotations: ZoteroAnnotation[]): string {
   const lines: string[] = ["## Annotations", ""];
 
   for (const ann of annotations) {
-    const label = TYPE_LABEL[ann.annotationType] ?? ann.annotationType;
-    const page = ann.pageLabel ? `Page ${ann.pageLabel}` : "Unknown page";
+    const link = buildAnnotationLink(ann);
 
-    lines.push(`### ${page} — ${label}`);
-
+    let linkText: string;
     if (ann.annotationType === "image") {
-      lines.push(`*[Image annotation]*`);
+      linkText = "Image annotation";
     } else if (ann.annotationType === "ink") {
-      lines.push(`*[Ink annotation]*`);
+      linkText = "Ink annotation";
     } else if (ann.text) {
-      lines.push(`> "${ann.text}"`);
+      linkText = ann.text;
+    } else {
+      linkText = "Note";
     }
+
+    lines.push(`[${linkText}](${link})`);
 
     if (ann.comment) {
       lines.push("");

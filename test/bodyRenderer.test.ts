@@ -6,6 +6,7 @@ function makeAnnotation(overrides: Partial<ZoteroAnnotation> = {}): ZoteroAnnota
   return {
     id: 1,
     key: "ANN001",
+    attachmentKey: "ATT001",
     annotationType: "highlight",
     text: "Sample text",
     comment: null,
@@ -29,41 +30,47 @@ describe("bodyRenderer", function () {
       assert.match(result, /^## Annotations/);
     });
 
-    it("renders highlight annotation with quoted text", function () {
-      const ann = makeAnnotation({ annotationType: "highlight", text: "Hello world", pageLabel: "3" });
+    it("renders highlight annotation as markdown link with text", function () {
+      const ann = makeAnnotation({ annotationType: "highlight", text: "Hello world", pageLabel: "3", attachmentKey: "ATT123" });
       const result = renderAnnotationBody([ann]);
-      assert.include(result, "### Page 3 — Highlight");
-      assert.include(result, '> "Hello world"');
+      assert.include(result, "[Hello world](zotero://open-pdf/library/items/ATT123?page=3&annotation=ANN001)");
     });
 
-    it("renders underline annotation", function () {
-      const ann = makeAnnotation({ annotationType: "underline", text: "Underlined" });
+    it("renders underline annotation as markdown link with text", function () {
+      const ann = makeAnnotation({ annotationType: "underline", text: "Underlined", attachmentKey: "ATT123" });
       const result = renderAnnotationBody([ann]);
-      assert.include(result, "### Page 5 — Underline");
-      assert.include(result, '> "Underlined"');
+      assert.include(result, "[Underlined](zotero://open-pdf/library/items/ATT123?page=5&annotation=ANN001)");
     });
 
-    it("renders note annotation", function () {
-      const ann = makeAnnotation({ annotationType: "note", text: "A note" });
+    it("renders note annotation with text as markdown link", function () {
+      const ann = makeAnnotation({ annotationType: "note", text: "A note", attachmentKey: "ATT123" });
       const result = renderAnnotationBody([ann]);
-      assert.include(result, "### Page 5 — Note");
-      assert.include(result, '> "A note"');
+      assert.include(result, "[A note](zotero://open-pdf/library/items/ATT123?page=5&annotation=ANN001)");
     });
 
-    it("renders image annotation as placeholder, not quoted text", function () {
-      const ann = makeAnnotation({ annotationType: "image", text: null });
+    it("renders note annotation without text using 'Note' as link text", function () {
+      const ann = makeAnnotation({ annotationType: "note", text: null, attachmentKey: "ATT123" });
       const result = renderAnnotationBody([ann]);
-      assert.include(result, "### Page 5 — Image");
-      assert.include(result, "*[Image annotation]*");
-      assert.notInclude(result, '> "');
+      assert.include(result, "[Note](zotero://open-pdf/library/items/ATT123?page=5&annotation=ANN001)");
     });
 
-    it("renders ink annotation as placeholder, not quoted text", function () {
-      const ann = makeAnnotation({ annotationType: "ink", text: null });
+    it("renders image annotation as markdown link with 'Image annotation' text", function () {
+      const ann = makeAnnotation({ annotationType: "image", text: null, attachmentKey: "ATT123" });
       const result = renderAnnotationBody([ann]);
-      assert.include(result, "### Page 5 — Ink");
-      assert.include(result, "*[Ink annotation]*");
-      assert.notInclude(result, '> "');
+      assert.include(result, "[Image annotation](zotero://open-pdf/library/items/ATT123?page=5&annotation=ANN001)");
+    });
+
+    it("renders ink annotation as markdown link with 'Ink annotation' text", function () {
+      const ann = makeAnnotation({ annotationType: "ink", text: null, attachmentKey: "ATT123" });
+      const result = renderAnnotationBody([ann]);
+      assert.include(result, "[Ink annotation](zotero://open-pdf/library/items/ATT123?page=5&annotation=ANN001)");
+    });
+
+    it("link omits page param when pageLabel is null", function () {
+      const ann = makeAnnotation({ pageLabel: null, attachmentKey: "ATT123" });
+      const result = renderAnnotationBody([ann]);
+      assert.include(result, "zotero://open-pdf/library/items/ATT123?annotation=ANN001");
+      assert.notInclude(result, "page=");
     });
 
     it("includes comment when present", function () {
@@ -90,12 +97,6 @@ describe("bodyRenderer", function () {
       const ann = makeAnnotation({ tags: [] });
       const result = renderAnnotationBody([ann]);
       assert.notInclude(result, "🏷️");
-    });
-
-    it("shows 'Unknown page' when pageLabel is null", function () {
-      const ann = makeAnnotation({ pageLabel: null });
-      const result = renderAnnotationBody([ann]);
-      assert.include(result, "Unknown page");
     });
 
     it("does not end with trailing '---' separator", function () {

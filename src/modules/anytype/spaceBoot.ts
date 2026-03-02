@@ -1,10 +1,11 @@
 import { AnytypeClient } from "./client";
 import type { SpaceConfig } from "./mapper";
 
-const ZOTERO_TYPE_NAME = "Zotero Item";
-const ZOTERO_TYPE_KEY_HINT = "zotero_item";
+const ZOTERO_TYPE_NAME = "Book Note";
+const ZOTERO_TYPE_KEY_HINT = "book_note";
 
 const RELATIONS_TO_CREATE = [
+  { name: "Zotero Link", format: "url", key: "zoteroLink" },
   { name: "Authors", format: "text", key: "authors" },
   { name: "Year", format: "text", key: "year" },
   { name: "DOI", format: "url", key: "doi" },
@@ -34,6 +35,7 @@ export class SpaceBoot {
       spaceId,
       typeKey,
       relations: {
+        zoteroLink: relationKeys.zoteroLink,
         authors: relationKeys.authors,
         year: relationKeys.year,
         doi: relationKeys.doi,
