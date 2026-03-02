@@ -10,7 +10,6 @@ class Addon {
     alive: boolean;
     config: typeof config;
     env: "development" | "production";
-    initialized?: boolean;
     ztoolkit: ZToolkit;
     locale?: { current: any };
     // AnyTero-specific runtime state
@@ -27,7 +26,6 @@ class Addon {
       alive: true,
       config,
       env: __env__,
-      initialized: false,
       ztoolkit: createZToolkit(),
     };
     this.hooks = hooks;

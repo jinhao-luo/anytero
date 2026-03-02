@@ -20,20 +20,22 @@ async function onStartup() {
   await Promise.all(
     Zotero.getMainWindows().map((win) => onMainWindowLoad(win)),
   );
-
-  addon.data.initialized = true;
 }
 
 async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   addon.data.ztoolkit = createZToolkit();
 
-  win.MozXULElement.insertFTLIfNeeded(
-    `${config.addonRef}-mainWindow.ftl`,
-  );
+  win.MozXULElement.insertFTLIfNeeded(`${config.addonRef}-mainWindow.ftl`);
+
+  await Zotero.PreferencePanes.register({
+    pluginID: config.addonID,
+    src: rootURI + "content/preferences.xhtml",
+    label: "AnyTero",
+    image: `chrome://${config.addonRef}/content/icons/favicon@0.5x.png`,
+    defaultXUL: true,
+  });
 
   await _initSyncIfConfigured();
-
-  addon.data.initialized = true;
 }
 
 async function onMainWindowUnload(_win: Window): Promise<void> {
@@ -76,24 +78,39 @@ async function onPrefsEvent(type: string, data: { [key: string]: unknown }) {
 // ── Internal helpers ────────────────────────────────────────────────────────
 
 async function _initSyncIfConfigured(): Promise<void> {
-  const apiKey = Zotero.Prefs.get(`${config.prefsPrefix}.apiKey`, true) as string;
-  const spaceId = Zotero.Prefs.get(`${config.prefsPrefix}.spaceId`, true) as string;
-  const isInitialized = Zotero.Prefs.get(`${config.prefsPrefix}.initialized`, true) as boolean;
+  const apiKey = Zotero.Prefs.get(
+    `${config.prefsPrefix}.apiKey`,
+    true,
+  ) as string;
+  const spaceId = Zotero.Prefs.get(
+    `${config.prefsPrefix}.spaceId`,
+    true,
+  ) as string;
+  const isInitialized = Zotero.Prefs.get(
+    `${config.prefsPrefix}.initialized`,
+    true,
+  ) as boolean;
 
   if (!apiKey || !spaceId || !isInitialized) {
     ztoolkit.log("AnyTero: not configured, skipping sync init");
     return;
   }
 
-  const port = (Zotero.Prefs.get(`${config.prefsPrefix}.port`, true) as number) || 31009;
-  const syncMode = (Zotero.Prefs.get(`${config.prefsPrefix}.syncMode`, true) as string) || "both";
+  const port =
+    (Zotero.Prefs.get(`${config.prefsPrefix}.port`, true) as number) || 31009;
+  const syncMode =
+    (Zotero.Prefs.get(`${config.prefsPrefix}.syncMode`, true) as string) ||
+    "both";
 
   const client = new AnytypeClient(port, apiKey);
   const itemReader = new ItemReader();
   const state = new SyncState();
   const engine = new SyncEngine(itemReader, client, state);
 
-  const spaceConfigRaw = Zotero.Prefs.get(`${config.prefsPrefix}.spaceConfig`, true) as string;
+  const spaceConfigRaw = Zotero.Prefs.get(
+    `${config.prefsPrefix}.spaceConfig`,
+    true,
+  ) as string;
   if (spaceConfigRaw) {
     try {
       engine.setSpaceConfig(JSON.parse(spaceConfigRaw));
@@ -119,15 +136,26 @@ async function _initSyncIfConfigured(): Promise<void> {
 }
 
 async function _populateSpaceDropdown(): Promise<void> {
-  const client = addon.data.client;
-  if (!client) return;
+  ztoolkit.log("AnyTero: _populateSpaceDropdown called, client:", addon.data.client ? "present" : "null");
+  const apiKey = Zotero.Prefs.get(`${config.prefsPrefix}.apiKey`, true) as string;
+  if (!apiKey) {
+    ztoolkit.log("AnyTero: no apiKey set, skipping dropdown population");
+    return;
+  }
+  const port = (Zotero.Prefs.get(`${config.prefsPrefix}.port`, true) as number) || 31009;
+  const client = addon.data.client ?? new AnytypeClient(port, apiKey);
 
   try {
+    ztoolkit.log("AnyTero: fetching spaces from API…");
     const spaces = await client.listSpaces();
+    ztoolkit.log("AnyTero: listSpaces returned", spaces.length, "spaces:", JSON.stringify(spaces));
+
     const doc = (addon.data.prefsWindow as any)?.document;
+    ztoolkit.log("AnyTero: prefsWindow doc:", doc ? "present" : "null");
     if (!doc) return;
 
     const popup = doc.getElementById("anytero-pref-space-popup");
+    ztoolkit.log("AnyTero: anytero-pref-space-popup element:", popup ? "found" : "not found");
     if (!popup) return;
 
     while (popup.firstChild) popup.removeChild(popup.firstChild);
@@ -139,15 +167,23 @@ async function _populateSpaceDropdown(): Promise<void> {
       item.setAttribute("label", space.name);
       popup.appendChild(item);
     }
+    ztoolkit.log("AnyTero: dropdown populated with", spaces.length, "items");
   } catch (e) {
     ztoolkit.log("AnyTero: failed to load spaces for dropdown", e);
   }
 }
 
 async function _runSetupWizard(): Promise<void> {
-  const apiKey = Zotero.Prefs.get(`${config.prefsPrefix}.apiKey`, true) as string;
-  const port = (Zotero.Prefs.get(`${config.prefsPrefix}.port`, true) as number) || 31009;
-  const spaceId = Zotero.Prefs.get(`${config.prefsPrefix}.spaceId`, true) as string;
+  const apiKey = Zotero.Prefs.get(
+    `${config.prefsPrefix}.apiKey`,
+    true,
+  ) as string;
+  const port =
+    (Zotero.Prefs.get(`${config.prefsPrefix}.port`, true) as number) || 31009;
+  const spaceId = Zotero.Prefs.get(
+    `${config.prefsPrefix}.spaceId`,
+    true,
+  ) as string;
 
   if (!apiKey || !spaceId) {
     ztoolkit.log("AnyTero: API key or space ID not set, cannot run setup");
@@ -157,16 +193,27 @@ async function _runSetupWizard(): Promise<void> {
   const client = new AnytypeClient(port, apiKey);
   const boot = new SpaceBoot(client);
 
-  const progressWin = new ztoolkit.ProgressWindow(getString("sync-progress-title"), {
-    closeOnClick: false,
-    closeTime: -1,
-  })
-    .createLine({ text: "Setting up AnyType space…", type: "default", progress: 0 })
+  const progressWin = new ztoolkit.ProgressWindow(
+    getString("sync-progress-title"),
+    {
+      closeOnClick: false,
+      closeTime: -1,
+    },
+  )
+    .createLine({
+      text: "Setting up AnyType space…",
+      type: "default",
+      progress: 0,
+    })
     .show();
 
   try {
     const spaceConfig = await boot.run(spaceId);
-    Zotero.Prefs.set(`${config.prefsPrefix}.spaceConfig`, JSON.stringify(spaceConfig), true);
+    Zotero.Prefs.set(
+      `${config.prefsPrefix}.spaceConfig`,
+      JSON.stringify(spaceConfig),
+      true,
+    );
     Zotero.Prefs.set(`${config.prefsPrefix}.initialized`, true, true);
 
     addon.data.notifierListener?.unregister();
@@ -175,7 +222,11 @@ async function _runSetupWizard(): Promise<void> {
     progressWin.changeLine({ progress: 100, text: "Setup complete!" });
     progressWin.startCloseTimer(3000);
   } catch (e) {
-    progressWin.changeLine({ progress: 100, text: `Setup failed: ${e}`, type: "fail" });
+    progressWin.changeLine({
+      progress: 100,
+      text: `Setup failed: ${e}`,
+      type: "fail",
+    });
     progressWin.startCloseTimer(5000);
     ztoolkit.log("AnyTero: setup wizard failed", e);
   }
@@ -188,11 +239,18 @@ async function _runFullSync(): Promise<void> {
     return;
   }
 
-  const progressWin = new ztoolkit.ProgressWindow(getString("sync-progress-title"), {
-    closeOnClick: true,
-    closeTime: -1,
-  })
-    .createLine({ text: getString("sync-progress-start"), type: "default", progress: 0 })
+  const progressWin = new ztoolkit.ProgressWindow(
+    getString("sync-progress-title"),
+    {
+      closeOnClick: true,
+      closeTime: -1,
+    },
+  )
+    .createLine({
+      text: getString("sync-progress-start"),
+      type: "default",
+      progress: 0,
+    })
     .show();
 
   try {
@@ -204,10 +262,17 @@ async function _runFullSync(): Promise<void> {
       });
     });
 
-    progressWin.changeLine({ progress: 100, text: `Done — ${count} items synced` });
+    progressWin.changeLine({
+      progress: 100,
+      text: `Done — ${count} items synced`,
+    });
     progressWin.startCloseTimer(5000);
   } catch (e) {
-    progressWin.changeLine({ progress: 100, text: `Sync error: ${e}`, type: "fail" });
+    progressWin.changeLine({
+      progress: 100,
+      text: `Sync error: ${e}`,
+      type: "fail",
+    });
     progressWin.startCloseTimer(8000);
     ztoolkit.log("AnyTero: full sync failed", e);
   }
