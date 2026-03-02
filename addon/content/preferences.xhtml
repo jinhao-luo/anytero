@@ -1,0 +1,90 @@
+<linkset>
+  <html:link rel="localization" href="__addonRef__-preferences.ftl" />
+</linkset>
+
+<groupbox
+  onload="Zotero.__addonInstance__.hooks.onPrefsEvent('load', { window })"
+>
+  <!-- Connection -->
+  <label><html:h2 data-l10n-id="pref-connection-header"></html:h2></label>
+
+  <hbox align="center">
+    <html:label
+      for="anytero-pref-api-key"
+      data-l10n-id="pref-api-key-label"
+      style="min-width: 6em;"
+    ></html:label>
+    <html:input
+      type="password"
+      id="anytero-pref-api-key"
+      preference="apiKey"
+      style="flex: 1;"
+    ></html:input>
+  </hbox>
+
+  <hbox align="center">
+    <html:label
+      for="anytero-pref-port"
+      data-l10n-id="pref-port-label"
+      style="min-width: 6em;"
+    ></html:label>
+    <html:input
+      type="number"
+      id="anytero-pref-port"
+      preference="port"
+      style="width: 6em;"
+    ></html:input>
+  </hbox>
+
+  <!-- Sync Target -->
+  <label><html:h2 data-l10n-id="pref-space-header"></html:h2></label>
+
+  <hbox align="center">
+    <html:label
+      for="anytero-pref-space"
+      data-l10n-id="pref-space-label"
+      style="min-width: 6em;"
+    ></html:label>
+    <menulist id="anytero-pref-space" preference="spaceId" style="flex: 1;">
+      <menupopup id="anytero-pref-space-popup" />
+    </menulist>
+  </hbox>
+
+  <!-- Sync Options -->
+  <label><html:h2 data-l10n-id="pref-sync-header"></html:h2></label>
+
+  <hbox align="center">
+    <html:label
+      for="anytero-pref-sync-mode"
+      data-l10n-id="pref-sync-mode-label"
+      style="min-width: 6em;"
+    ></html:label>
+    <menulist id="anytero-pref-sync-mode" preference="syncMode">
+      <menupopup>
+        <menuitem value="realtime" data-l10n-id="pref-sync-mode-realtime" />
+        <menuitem value="manual" data-l10n-id="pref-sync-mode-manual" />
+        <menuitem value="both" data-l10n-id="pref-sync-mode-both" />
+      </menupopup>
+    </menulist>
+  </hbox>
+
+  <hbox>
+    <button
+      id="anytero-pref-sync-now"
+      data-l10n-id="pref-sync-now-button"
+      oncommand="Zotero.__addonInstance__.hooks.onPrefsEvent('syncNow', { window })"
+    />
+    <button
+      id="anytero-pref-setup"
+      data-l10n-id="pref-setup-button"
+      oncommand="Zotero.__addonInstance__.hooks.onPrefsEvent('setup', { window })"
+    />
+  </hbox>
+</groupbox>
+
+<vbox>
+  <html:label
+    data-l10n-id="pref-help"
+    data-l10n-args='{"time": "__buildTime__","name": "__addonName__","version":"__buildVersion__"}'
+  ></html:label>
+</vbox>
