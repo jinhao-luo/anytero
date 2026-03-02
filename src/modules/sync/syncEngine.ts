@@ -1,6 +1,11 @@
 import { ItemReader } from "../zotero/itemReader";
 import { AnytypeClient } from "../anytype/client";
-import { renderAnnotationBody } from "../anytype/bodyRenderer";
+import {
+  renderAnnotationBody,
+  renderSingleAnnotation,
+  buildAnnotationLink,
+  ensureDoubleNewlineEnding,
+} from "../anytype/bodyRenderer";
 import { toCreatePayload, toUpdatePayload } from "../anytype/mapper";
 import type { SpaceConfig } from "../anytype/mapper";
 import { SyncState } from "./syncState";
@@ -30,7 +35,10 @@ export class SyncEngine {
 
   async syncItem(zoteroItemId: number): Promise<void> {
     if (!this._spaceConfig) {
-      ztoolkit.log("SyncEngine: no space config, skipping sync for", zoteroItemId);
+      ztoolkit.log(
+        "SyncEngine: no space config, skipping sync for",
+        zoteroItemId,
+      );
       return;
     }
 
@@ -41,21 +49,52 @@ export class SyncEngine {
     }
 
     const annotations = this._itemReader.getAnnotations(item);
-    const body = renderAnnotationBody(annotations);
     const { spaceId } = this._spaceConfig;
 
     const existingObjectId = this._state.getObjectId(item.key);
 
     try {
       if (existingObjectId) {
-        const payload = toUpdatePayload(item, body, this._spaceConfig);
+        const existing = await this._client.getObject(
+          spaceId,
+          existingObjectId,
+        );
+        const existingBody = existing.body ?? "";
+
+        const newAnnotations = annotations.filter(
+          (ann) => !existingBody.includes(ann.text),
+        );
+
+        let body: string;
+        if (newAnnotations.length === 0) {
+          ztoolkit.log("SyncEngine: no new annotations for", item.key);
+          return;
+        } else {
+          const newChunks = newAnnotations
+            .map(renderSingleAnnotation)
+            .join("\n\n");
+          body = ensureDoubleNewlineEnding(existingBody) + newChunks;
+        }
+
+        const payload = { markdown: body };
         await this._client.updateObject(spaceId, existingObjectId, payload);
-        ztoolkit.log("SyncEngine: updated object", existingObjectId, "for item", item.key);
+        ztoolkit.log(
+          "SyncEngine: updated object",
+          existingObjectId,
+          "for item",
+          item.key,
+        );
       } else {
+        const body = renderAnnotationBody(annotations);
         const payload = toCreatePayload(item, body, this._spaceConfig);
         const objectId = await this._client.createObject(spaceId, payload);
         this._state.set(item.key, objectId);
-        ztoolkit.log("SyncEngine: created object", objectId, "for item", item.key);
+        ztoolkit.log(
+          "SyncEngine: created object",
+          objectId,
+          "for item",
+          item.key,
+        );
       }
     } catch (e) {
       ztoolkit.log("SyncEngine: error syncing item", item.key, e);
@@ -71,7 +110,12 @@ export class SyncEngine {
     try {
       await this._client.deleteObject(this._spaceConfig.spaceId, objectId);
       this._state.remove(zoteroItemKey);
-      ztoolkit.log("SyncEngine: deleted object", objectId, "for item", zoteroItemKey);
+      ztoolkit.log(
+        "SyncEngine: deleted object",
+        objectId,
+        "for item",
+        zoteroItemKey,
+      );
     } catch (e) {
       ztoolkit.log("SyncEngine: error deleting item", zoteroItemKey, e);
     }

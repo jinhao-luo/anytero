@@ -1,11 +1,43 @@
 import type { ZoteroAnnotation } from "../zotero/itemReader";
 
-function buildAnnotationLink(ann: ZoteroAnnotation): string {
+export function ensureDoubleNewlineEnding(s: string): string {
+  return s.replace(/\n*$/, "\n\n");
+}
+
+export function buildAnnotationLink(ann: ZoteroAnnotation): string {
   const base = `zotero://open-pdf/library/items/${ann.attachmentKey}`;
   const params = new URLSearchParams();
   if (ann.pageLabel) params.set("page", ann.pageLabel);
   params.set("annotation", ann.key);
   return `${base}?${params.toString()}`;
+}
+
+export function renderSingleAnnotation(ann: ZoteroAnnotation): string {
+  const link = buildAnnotationLink(ann);
+
+  let linkText: string;
+  if (ann.annotationType === "image") {
+    linkText = "Image annotation";
+  } else if (ann.annotationType === "ink") {
+    linkText = "Ink annotation";
+  } else if (ann.text) {
+    linkText = ann.text;
+  } else {
+    linkText = "Note";
+  }
+
+  const parts: string[] = [`[${linkText}](${link})`];
+
+  if (ann.comment) {
+    parts.push("", `💬 ${ann.comment}`);
+  }
+
+  if (ann.tags.length > 0) {
+    const tagStr = ann.tags.map((t) => `\`${t}\``).join(" ");
+    parts.push("", `🏷️ ${tagStr}`);
+  }
+
+  return parts.join("\n");
 }
 
 export function renderAnnotationBody(annotations: ZoteroAnnotation[]): string {

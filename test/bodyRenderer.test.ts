@@ -1,5 +1,5 @@
 import { assert } from "chai";
-import { renderAnnotationBody } from "../src/modules/anytype/bodyRenderer";
+import { renderAnnotationBody, ensureDoubleNewlineEnding } from "../src/modules/anytype/bodyRenderer";
 import type { ZoteroAnnotation } from "../src/modules/zotero/itemReader";
 
 function makeAnnotation(overrides: Partial<ZoteroAnnotation> = {}): ZoteroAnnotation {
@@ -131,6 +131,24 @@ describe("bodyRenderer", function () {
       assert.include(result, "💬 Note this");
       assert.include(result, "🏷️");
       assert.include(result, "`key`");
+    });
+  });
+
+  describe("ensureDoubleNewlineEnding", function () {
+    it("appends \\n\\n to a string with no trailing newlines", function () {
+      assert.strictEqual(ensureDoubleNewlineEnding("hello"), "hello\n\n");
+    });
+
+    it("normalizes a single trailing newline to double", function () {
+      assert.strictEqual(ensureDoubleNewlineEnding("hello\n"), "hello\n\n");
+    });
+
+    it("leaves a string already ending with \\n\\n unchanged", function () {
+      assert.strictEqual(ensureDoubleNewlineEnding("hello\n\n"), "hello\n\n");
+    });
+
+    it("collapses more than two trailing newlines down to two", function () {
+      assert.strictEqual(ensureDoubleNewlineEnding("hello\n\n\n\n"), "hello\n\n");
     });
   });
 });

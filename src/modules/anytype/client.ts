@@ -32,7 +32,7 @@ export interface CreateObjectPayload {
 
 export interface UpdateObjectPayload {
   name?: string;
-  body?: string;
+  markdown?: string;
   properties?: PropertyWithValue[];
 }
 
@@ -95,10 +95,23 @@ export class AnytypeClient {
     objectId: string,
     payload: UpdateObjectPayload,
   ): Promise<void> {
+    ztoolkit.log("UpdateObject: payload", payload);
     await this._fetch(`/spaces/${spaceId}/objects/${objectId}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
     });
+  }
+
+  async getObject(
+    spaceId: string,
+    objectId: string,
+  ): Promise<{ body?: string }> {
+    const data = (await this._fetch(
+      `/spaces/${spaceId}/objects/${objectId}`,
+    )) as {
+      object: { body?: string };
+    };
+    return data.object ?? {};
   }
 
   async deleteObject(spaceId: string, objectId: string): Promise<void> {

@@ -9,7 +9,7 @@ export interface ZoteroAnnotation {
   key: string;
   attachmentKey: string;
   annotationType: "highlight" | "note" | "image" | "ink" | "underline";
-  text: string | null;
+  text: string;
   comment: string | null;
   color: string | null;
   pageLabel: string | null;
@@ -110,7 +110,10 @@ export class ItemReader {
     };
   }
 
-  private _toZoteroAnnotation(ann: Zotero.Item, attachmentKey: string): ZoteroAnnotation {
+  private _toZoteroAnnotation(
+    ann: Zotero.Item,
+    attachmentKey: string,
+  ): ZoteroAnnotation {
     return {
       id: ann.id,
       key: ann.key,

@@ -36,6 +36,7 @@ function makeAnnotation(overrides: Partial<ZoteroAnnotation> = {}): ZoteroAnnota
   return {
     id: 10,
     key: "ANN001",
+    attachmentKey: "ATT001",
     annotationType: "highlight",
     text: "Important passage",
     comment: null,
@@ -58,7 +59,7 @@ interface CallLog {
   deleteObject: Array<{ spaceId: string; objectId: string }>;
 }
 
-function makeClient(createObjectReturn = "new-obj-id"): [AnytypeClient, CallLog] {
+function makeClient(createObjectReturn = "new-obj-id", existingBody = ""): [AnytypeClient, CallLog] {
   const calls: CallLog = { createObject: [], updateObject: [], deleteObject: [] };
   const client = {
     async createObject(spaceId: string, payload: unknown): Promise<string> {
@@ -70,6 +71,9 @@ function makeClient(createObjectReturn = "new-obj-id"): [AnytypeClient, CallLog]
     },
     async deleteObject(spaceId: string, objectId: string): Promise<void> {
       calls.deleteObject.push({ spaceId, objectId });
+    },
+    async getObject(_spaceId: string, _objectId: string): Promise<{ body?: string }> {
+      return { body: existingBody };
     },
     listSpaces: async () => [],
     listTypes: async () => [],
@@ -254,6 +258,7 @@ describe("SyncEngine", function () {
         createObject: async () => "id",
         updateObject: async () => { throw new Error("API down"); },
         deleteObject: async () => {},
+        getObject: async () => ({ body: "" }),
         listSpaces: async () => [],
         searchObjects: async () => [],
         createType: async () => "",
