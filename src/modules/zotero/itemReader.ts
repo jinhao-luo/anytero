@@ -66,7 +66,7 @@ export class ItemReader {
       Zotero.Libraries.userLibraryID,
       false,
       false,
-      true,
+      false,
     )) as unknown as Zotero.Item[];
 
     for (const item of allItems) {

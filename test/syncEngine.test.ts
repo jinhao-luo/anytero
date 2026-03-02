@@ -12,14 +12,7 @@ const testConfig: SpaceConfig = {
   spaceId: "space-test",
   typeKey: "zotero_item",
   relations: {
-    authors: "rel_authors",
-    year: "rel_year",
-    doi: "rel_doi",
-    publication: "rel_publication",
-    itemType: "rel_itemType",
-    tags: "rel_tags",
-    zoteroKey: "rel_zoteroKey",
-    dateSynced: "rel_dateSynced",
+    zoteroLink: "rel_zoteroLink",
   },
 };
 
@@ -79,8 +72,7 @@ function makeClient(createObjectReturn = "new-obj-id"): [AnytypeClient, CallLog]
       calls.deleteObject.push({ spaceId, objectId });
     },
     listSpaces: async () => [],
-    searchObjects: async () => [],
-    createType: async () => "",
+    listTypes: async () => [],
     createRelation: async () => "",
   } as unknown as AnytypeClient;
   return [client, calls];

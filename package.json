@@ -2,7 +2,7 @@
   "name": "anytero",
   "type": "module",
   "version": "0.1.0",
-  "description": "Zotero plugin that syncs annotations to an AnyType space",
+  "description": "Zotero plugin that syncs annotations to an Anytype space",
   "config": {
     "addonName": "AnyTero",
     "addonID": "anytero@jinhaoluo.com",

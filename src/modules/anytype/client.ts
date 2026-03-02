@@ -10,18 +10,30 @@ export interface AnytypeObject {
   name: string;
 }
 
+export interface AnytypeProperty {
+  key: string;
+  name: string;
+  format: string;
+}
+
+export type PropertyWithValue =
+  | { key: string; url: string }
+  | { key: string; text: string }
+  | { key: string; number: number }
+  | { key: string; checkbox: boolean };
+
 export interface CreateObjectPayload {
   name: string;
   icon?: string;
   body?: string;
   type_key: string;
-  properties?: Record<string, unknown>;
+  properties?: PropertyWithValue[];
 }
 
 export interface UpdateObjectPayload {
   name?: string;
   body?: string;
-  properties?: Record<string, unknown>;
+  properties?: PropertyWithValue[];
 }
 
 export class AnytypeClient {
@@ -36,40 +48,53 @@ export class AnytypeClient {
   private _headers(): Record<string, string> {
     return {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${this._apiKey}`,
+      Authorization: `Bearer ${this._apiKey}`,
       "Anytype-Version": ANYTYPE_API_VERSION,
     };
   }
 
-  private async _fetch(path: string, options: RequestInit = {}): Promise<unknown> {
+  private async _fetch(
+    path: string,
+    options: RequestInit = {},
+  ): Promise<unknown> {
     const url = `${this._baseUrl}${path}`;
     const response = await fetch(url, {
       ...options,
-      headers: { ...this._headers(), ...(options.headers as Record<string, string> ?? {}) },
+      headers: {
+        ...this._headers(),
+        ...((options.headers as Record<string, string>) ?? {}),
+      },
     });
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(`AnyType API error ${response.status}: ${body}`);
+      throw new Error(`Anytype API error ${response.status}: ${body}`);
     }
 
     return response.json();
   }
 
   async listSpaces(): Promise<AnytypeSpace[]> {
-    const data = await this._fetch("/spaces") as { data: AnytypeSpace[] };
+    const data = (await this._fetch("/spaces")) as { data: AnytypeSpace[] };
     return data.data ?? [];
   }
 
-  async createObject(spaceId: string, payload: CreateObjectPayload): Promise<string> {
-    const data = await this._fetch(`/spaces/${spaceId}/objects`, {
+  async createObject(
+    spaceId: string,
+    payload: CreateObjectPayload,
+  ): Promise<string> {
+    const data = (await this._fetch(`/spaces/${spaceId}/objects`, {
       method: "POST",
       body: JSON.stringify(payload),
-    }) as { object: { id: string } };
+    })) as { object: { id: string } };
     return data.object.id;
   }
 
-  async updateObject(spaceId: string, objectId: string, payload: UpdateObjectPayload): Promise<void> {
+  async updateObject(
+    spaceId: string,
+    objectId: string,
+    payload: UpdateObjectPayload,
+  ): Promise<void> {
     await this._fetch(`/spaces/${spaceId}/objects/${objectId}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
@@ -82,27 +107,36 @@ export class AnytypeClient {
     });
   }
 
-  async searchObjects(spaceId: string, filters: Record<string, unknown>): Promise<AnytypeObject[]> {
-    const params = new URLSearchParams(
-      Object.entries(filters).map(([k, v]) => [k, String(v)]),
-    );
-    const data = await this._fetch(`/spaces/${spaceId}/search?${params}`) as { data: AnytypeObject[] };
+  async listTypes(spaceId: string): Promise<AnytypeObject[]> {
+    const data = (await this._fetch(`/spaces/${spaceId}/types`)) as {
+      data: AnytypeObject[];
+    };
     return data.data ?? [];
   }
 
-  async createType(spaceId: string, payload: Record<string, unknown>): Promise<string> {
-    const data = await this._fetch(`/spaces/${spaceId}/types`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }) as { type: { key: string } };
-    return data.type.key;
+  async listProperties(
+    spaceId: string,
+    filters?: { nameContains?: string },
+  ): Promise<AnytypeProperty[]> {
+    const params = new URLSearchParams();
+    if (filters?.nameContains) {
+      params.set("name[contains]", filters.nameContains);
+    }
+    const query = params.size > 0 ? `?${params}` : "";
+    const data = (await this._fetch(
+      `/spaces/${spaceId}/properties${query}`,
+    )) as { data: AnytypeProperty[] };
+    return data.data ?? [];
   }
 
-  async createRelation(spaceId: string, payload: Record<string, unknown>): Promise<string> {
-    const data = await this._fetch(`/spaces/${spaceId}/relations`, {
+  async createProperty(
+    spaceId: string,
+    payload: Record<string, unknown>,
+  ): Promise<string> {
+    const data = (await this._fetch(`/spaces/${spaceId}/properties`, {
       method: "POST",
       body: JSON.stringify(payload),
-    }) as { relation: { key: string } };
-    return data.relation.key;
+    })) as { property: { key: string } };
+    return data.property.key;
   }
 }

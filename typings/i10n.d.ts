@@ -13,6 +13,8 @@ export type FluentMessageId =
   | 'pref-api-key-placeholder'
   | 'pref-connection-header'
   | 'pref-help'
+  | 'pref-object-type-label'
+  | 'pref-object-type-placeholder'
   | 'pref-port-label'
   | 'pref-setup-button'
   | 'pref-space-header'

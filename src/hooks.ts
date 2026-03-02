@@ -65,6 +65,10 @@ async function onPrefsEvent(type: string, data: { [key: string]: unknown }) {
     case "load":
       addon.data.prefsWindow = data.window as Window;
       await _populateSpaceDropdown();
+      await _populateObjectTypeDropdown();
+      break;
+    case "spaceChange":
+      await _populateObjectTypeDropdown();
       break;
     case "syncNow":
       await _runFullSync();
@@ -86,12 +90,12 @@ async function _initSyncIfConfigured(): Promise<void> {
     `${config.prefsPrefix}.spaceId`,
     true,
   ) as string;
-  const isInitialized = Zotero.Prefs.get(
-    `${config.prefsPrefix}.initialized`,
+  const spaceConfigRaw = Zotero.Prefs.get(
+    `${config.prefsPrefix}.spaceConfig`,
     true,
-  ) as boolean;
+  ) as string;
 
-  if (!apiKey || !spaceId || !isInitialized) {
+  if (!apiKey || !spaceId || !spaceConfigRaw) {
     ztoolkit.log("AnyTero: not configured, skipping sync init");
     return;
   }
@@ -107,17 +111,11 @@ async function _initSyncIfConfigured(): Promise<void> {
   const state = new SyncState();
   const engine = new SyncEngine(itemReader, client, state);
 
-  const spaceConfigRaw = Zotero.Prefs.get(
-    `${config.prefsPrefix}.spaceConfig`,
-    true,
-  ) as string;
-  if (spaceConfigRaw) {
-    try {
-      engine.setSpaceConfig(JSON.parse(spaceConfigRaw));
-    } catch {
-      ztoolkit.log("AnyTero: failed to parse persisted space config");
-      return;
-    }
+  try {
+    engine.setSpaceConfig(JSON.parse(spaceConfigRaw));
+  } catch {
+    ztoolkit.log("AnyTero: failed to parse persisted space config");
+    return;
   }
 
   addon.data.client = client;
@@ -136,26 +134,41 @@ async function _initSyncIfConfigured(): Promise<void> {
 }
 
 async function _populateSpaceDropdown(): Promise<void> {
-  ztoolkit.log("AnyTero: _populateSpaceDropdown called, client:", addon.data.client ? "present" : "null");
-  const apiKey = Zotero.Prefs.get(`${config.prefsPrefix}.apiKey`, true) as string;
+  ztoolkit.log(
+    "AnyTero: _populateSpaceDropdown called, client:",
+    addon.data.client ? "present" : "null",
+  );
+  const apiKey = Zotero.Prefs.get(
+    `${config.prefsPrefix}.apiKey`,
+    true,
+  ) as string;
   if (!apiKey) {
     ztoolkit.log("AnyTero: no apiKey set, skipping dropdown population");
     return;
   }
-  const port = (Zotero.Prefs.get(`${config.prefsPrefix}.port`, true) as number) || 31009;
+  const port =
+    (Zotero.Prefs.get(`${config.prefsPrefix}.port`, true) as number) || 31009;
   const client = addon.data.client ?? new AnytypeClient(port, apiKey);
 
   try {
     ztoolkit.log("AnyTero: fetching spaces from API…");
     const spaces = await client.listSpaces();
-    ztoolkit.log("AnyTero: listSpaces returned", spaces.length, "spaces:", JSON.stringify(spaces));
+    ztoolkit.log(
+      "AnyTero: listSpaces returned",
+      spaces.length,
+      "spaces:",
+      JSON.stringify(spaces),
+    );
 
     const doc = (addon.data.prefsWindow as any)?.document;
     ztoolkit.log("AnyTero: prefsWindow doc:", doc ? "present" : "null");
     if (!doc) return;
 
     const popup = doc.getElementById("anytero-pref-space-popup");
-    ztoolkit.log("AnyTero: anytero-pref-space-popup element:", popup ? "found" : "not found");
+    ztoolkit.log(
+      "AnyTero: anytero-pref-space-popup element:",
+      popup ? "found" : "not found",
+    );
     if (!popup) return;
 
     while (popup.firstChild) popup.removeChild(popup.firstChild);
@@ -173,6 +186,47 @@ async function _populateSpaceDropdown(): Promise<void> {
   }
 }
 
+async function _populateObjectTypeDropdown(): Promise<void> {
+  const doc = (addon.data.prefsWindow as any)?.document;
+  if (!doc) return;
+
+  const spaceMenulist = doc.getElementById("anytero-pref-space") as any;
+  const spaceId =
+    (spaceMenulist?.value as string) ||
+    (Zotero.Prefs.get(`${config.prefsPrefix}.spaceId`, true) as string);
+  if (!spaceId) return;
+
+  const apiKey = Zotero.Prefs.get(
+    `${config.prefsPrefix}.apiKey`,
+    true,
+  ) as string;
+  if (!apiKey) return;
+
+  const port =
+    (Zotero.Prefs.get(`${config.prefsPrefix}.port`, true) as number) || 31009;
+  const client = addon.data.client ?? new AnytypeClient(port, apiKey);
+
+  try {
+    const types = await client.listTypes(spaceId);
+
+    const popup = doc.getElementById("anytero-pref-object-type-popup");
+    if (!popup) return;
+
+    while (popup.firstChild) popup.removeChild(popup.firstChild);
+
+    const ns = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+    for (const type of types) {
+      const item = doc.createElementNS(ns, "menuitem");
+      item.setAttribute("value", type.id);
+      item.setAttribute("label", type.name);
+      popup.appendChild(item);
+    }
+    ztoolkit.log("AnyTero: object type dropdown populated with", types.length, "types");
+  } catch (e) {
+    ztoolkit.log("AnyTero: failed to load types for dropdown", e);
+  }
+}
+
 async function _runSetupWizard(): Promise<void> {
   const apiKey = Zotero.Prefs.get(
     `${config.prefsPrefix}.apiKey`,
@@ -184,9 +238,15 @@ async function _runSetupWizard(): Promise<void> {
     `${config.prefsPrefix}.spaceId`,
     true,
   ) as string;
+  const objectTypeKey = Zotero.Prefs.get(
+    `${config.prefsPrefix}.objectTypeKey`,
+    true,
+  ) as string;
 
-  if (!apiKey || !spaceId) {
-    ztoolkit.log("AnyTero: API key or space ID not set, cannot run setup");
+  if (!apiKey || !spaceId || !objectTypeKey) {
+    ztoolkit.log(
+      "AnyTero: API key, space ID, or object type not set, cannot run setup",
+    );
     return;
   }
 
@@ -201,20 +261,19 @@ async function _runSetupWizard(): Promise<void> {
     },
   )
     .createLine({
-      text: "Setting up AnyType space…",
+      text: "Setting up Anytype space…",
       type: "default",
       progress: 0,
     })
     .show();
 
   try {
-    const spaceConfig = await boot.run(spaceId);
+    const spaceConfig = await boot.run(spaceId, objectTypeKey);
     Zotero.Prefs.set(
       `${config.prefsPrefix}.spaceConfig`,
       JSON.stringify(spaceConfig),
       true,
     );
-    Zotero.Prefs.set(`${config.prefsPrefix}.initialized`, true, true);
 
     addon.data.notifierListener?.unregister();
     await _initSyncIfConfigured();

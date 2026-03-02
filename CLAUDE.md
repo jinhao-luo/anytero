@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-AnyTero is a Zotero plugin that syncs Zotero annotations to an AnyType space.
+AnyTero is a Zotero plugin that syncs Zotero annotations to an Anytype space.
 
 ## Development Environment
 
@@ -35,7 +35,7 @@ Run `direnv allow` after cloning to activate the environment. The `zotero` layou
 
 ```
 src/modules/zotero/     — Zotero API wrappers (itemReader, notifierListener)
-src/modules/anytype/    — AnyType REST client, body renderer, mapper, spaceBoot
+src/modules/anytype/    — Anytype REST client, body renderer, mapper, spaceBoot
 src/modules/sync/       — syncEngine (orchestration), syncState (ID mapping persistence)
 ```
 
@@ -51,12 +51,12 @@ src/modules/sync/       — syncEngine (orchestration), syncState (ID mapping pe
 - `zotero://select/library/items/KEY` — opens and selects item in Zotero
 - `zotero://open-pdf/library/items/ATTKEY?page=PAGE&annotation=ANNKEY` — opens PDF at annotation
 
-## AnyType API
+## Anytype API
 
 - Local REST API at `http://127.0.0.1:31009/v1` (desktop app must be running)
 - Required headers: `Authorization: Bearer <key>`, `Anytype-Version: 2025-11-08`
-- Auth: API key from AnyType Settings → API Keys, stored in `extensions.zotero.anytero.apiKey`
+- Auth: API key from Anytype Settings → API Keys, stored in `extensions.zotero.anytero.apiKey`
 
 ## Data Model
 
-AnyType object type: `Book Note` (one per Zotero item). Object has a `Zotero Link` property (`zotero://select/...`). Body lists annotations as markdown links: `[text](zotero://open-pdf/library/items/ATTKEY?page=PAGE&annotation=KEY)`. Sync state (Zotero key → AnyType object ID) is persisted as JSON in `Zotero.Prefs`.
+Anytype object type: `Book Note` (one per Zotero item). Object has a `Zotero Link` property (`zotero://select/...`). Body lists annotations as markdown links: `[text](zotero://open-pdf/library/items/ATTKEY?page=PAGE&annotation=KEY)`. Sync state (Zotero key → Anytype object ID) is persisted as JSON in `Zotero.Prefs`.

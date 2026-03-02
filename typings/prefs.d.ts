@@ -10,6 +10,7 @@ declare namespace _ZoteroTypes {
       "apiKey": string;
       "port": number;
       "spaceId": string;
+      "objectTypeKey": string;
       "syncMode": string;
       "initialized": boolean;
     };

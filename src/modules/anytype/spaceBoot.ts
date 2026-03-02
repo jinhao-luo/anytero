@@ -1,22 +1,7 @@
 import { AnytypeClient } from "./client";
 import type { SpaceConfig } from "./mapper";
 
-const ZOTERO_TYPE_NAME = "Book Note";
-const ZOTERO_TYPE_KEY_HINT = "book_note";
-
-const RELATIONS_TO_CREATE = [
-  { name: "Zotero Link", format: "url", key: "zoteroLink" },
-  { name: "Authors", format: "text", key: "authors" },
-  { name: "Year", format: "text", key: "year" },
-  { name: "DOI", format: "url", key: "doi" },
-  { name: "Publication", format: "text", key: "publication" },
-  { name: "Item Type", format: "text", key: "itemType" },
-  { name: "Tags", format: "text", key: "tags" },
-  { name: "Zotero Key", format: "text", key: "zoteroKey" },
-  { name: "Date Synced", format: "date", key: "dateSynced" },
-] as const;
-
-type RelationKeys = (typeof RELATIONS_TO_CREATE)[number]["key"];
+const ZOTERO_LINK_RELATION = { name: "Zotero Link", format: "url" } as const;
 
 export class SpaceBoot {
   private _client: AnytypeClient;
@@ -25,66 +10,34 @@ export class SpaceBoot {
     this._client = client;
   }
 
-  async run(spaceId: string): Promise<SpaceConfig> {
-    ztoolkit.log("SpaceBoot: creating type and relations in space", spaceId);
+  async run(spaceId: string, typeKey: string): Promise<SpaceConfig> {
+    ztoolkit.log("SpaceBoot: ensuring Zotero Link property in space", spaceId);
 
-    const typeKey = await this._ensureType(spaceId);
-    const relationKeys = await this._ensureRelations(spaceId);
+    const zoteroLinkKey = await this._ensureProperty(spaceId);
 
-    const config: SpaceConfig = {
+    ztoolkit.log(`SpaceBoot: "Zotero Link" property key → "${zoteroLinkKey}"`);
+
+    return {
       spaceId,
       typeKey,
-      relations: {
-        zoteroLink: relationKeys.zoteroLink,
-        authors: relationKeys.authors,
-        year: relationKeys.year,
-        doi: relationKeys.doi,
-        publication: relationKeys.publication,
-        itemType: relationKeys.itemType,
-        tags: relationKeys.tags,
-        zoteroKey: relationKeys.zoteroKey,
-        dateSynced: relationKeys.dateSynced,
-      },
+      relations: { zoteroLink: zoteroLinkKey },
     };
-
-    return config;
   }
 
-  private async _ensureType(spaceId: string): Promise<string> {
-    // Search for existing type first
-    const existing = await this._client.searchObjects(spaceId, {
-      object_type: "type",
-      query: ZOTERO_TYPE_NAME,
+  private async _ensureProperty(spaceId: string): Promise<string> {
+    const existing = await this._client.listProperties(spaceId, {
+      nameContains: ZOTERO_LINK_RELATION.name,
     });
-
-    if (existing.length > 0) {
-      ztoolkit.log("SpaceBoot: found existing type", existing[0]);
-      return ZOTERO_TYPE_KEY_HINT;
+    const found = existing.find((p) => p.name === ZOTERO_LINK_RELATION.name);
+    if (found) {
+      ztoolkit.log(
+        `SpaceBoot: found existing "${ZOTERO_LINK_RELATION.name}" property → "${found.key}"`,
+      );
+      return found.key;
     }
-
-    const key = await this._client.createType(spaceId, {
-      name: ZOTERO_TYPE_NAME,
-      icon: "📚",
+    return this._client.createProperty(spaceId, {
+      name: ZOTERO_LINK_RELATION.name,
+      format: ZOTERO_LINK_RELATION.format,
     });
-
-    ztoolkit.log("SpaceBoot: created type with key", key);
-    return key || ZOTERO_TYPE_KEY_HINT;
-  }
-
-  private async _ensureRelations(
-    spaceId: string,
-  ): Promise<Record<RelationKeys, string>> {
-    const keys = {} as Record<RelationKeys, string>;
-
-    for (const rel of RELATIONS_TO_CREATE) {
-      const key = await this._client.createRelation(spaceId, {
-        name: rel.name,
-        format: rel.format,
-      });
-      keys[rel.key] = key || rel.key;
-      ztoolkit.log(`SpaceBoot: relation "${rel.name}" → key "${keys[rel.key]}"`);
-    }
-
-    return keys;
   }
 }

@@ -1,13 +1,15 @@
 pref-title = AnyTero Settings
 
-pref-connection-header = AnyType Connection
+pref-connection-header = Anytype Connection
 pref-api-key-label = API Key
-pref-api-key-placeholder = Paste your AnyType API key here
+pref-api-key-placeholder = Paste your Anytype API key here
 pref-port-label = Port (default: 31009)
 
 pref-space-header = Sync Target
-pref-space-label = AnyType Space
+pref-space-label = Anytype Space
 pref-space-placeholder = Select a space...
+pref-object-type-label = Object Type
+pref-object-type-placeholder = Select an object type...
 
 pref-sync-header = Sync Options
 pref-sync-mode-label = Sync Mode

@@ -6,14 +6,6 @@ export interface SpaceConfig {
   typeKey: string;
   relations: {
     zoteroLink: string;
-    authors: string;
-    year: string;
-    doi: string;
-    publication: string;
-    itemType: string;
-    tags: string;
-    zoteroKey: string;
-    dateSynced: string;
   };
 }
 
@@ -42,22 +34,8 @@ export function toUpdatePayload(
   };
 }
 
-function buildProperties(item: ZoteroItem, config: SpaceConfig): Record<string, unknown> {
-  const rel = config.relations;
-  const authorStr = item.creators
-    .filter((c) => c.creatorType === "author")
-    .map((c) => [c.lastName, c.firstName].filter(Boolean).join(", "))
-    .join("; ");
-
-  return {
-    [rel.zoteroLink]: `zotero://select/library/items/${item.key}`,
-    [rel.authors]: authorStr || null,
-    [rel.year]: item.year ?? null,
-    [rel.doi]: item.doi ?? null,
-    [rel.publication]: item.publication ?? null,
-    [rel.itemType]: item.itemType,
-    [rel.tags]: item.tags.join(", ") || null,
-    [rel.zoteroKey]: item.key,
-    [rel.dateSynced]: new Date().toISOString(),
-  };
+function buildProperties(item: ZoteroItem, config: SpaceConfig) {
+  return [
+    { key: config.relations.zoteroLink, url: `zotero://select/library/items/${item.key}` },
+  ];
 }

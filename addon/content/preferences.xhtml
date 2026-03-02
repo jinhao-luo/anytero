@@ -45,8 +45,24 @@
       data-l10n-id="pref-space-label"
       style="min-width: 6em;"
     ></html:label>
-    <menulist id="anytero-pref-space" preference="spaceId" style="flex: 1;">
+    <menulist
+      id="anytero-pref-space"
+      preference="spaceId"
+      style="flex: 1;"
+      oncommand="Zotero.__addonInstance__.hooks.onPrefsEvent('spaceChange', { window })"
+    >
       <menupopup id="anytero-pref-space-popup" />
+    </menulist>
+  </hbox>
+
+  <hbox align="center">
+    <html:label
+      for="anytero-pref-object-type"
+      data-l10n-id="pref-object-type-label"
+      style="min-width: 6em;"
+    ></html:label>
+    <menulist id="anytero-pref-object-type" preference="objectTypeKey" style="flex: 1;">
+      <menupopup id="anytero-pref-object-type-popup" />
     </menulist>
   </hbox>
 
