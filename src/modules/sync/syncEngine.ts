@@ -1,3 +1,22 @@
+/**
+ * @file syncEngine.ts
+ *
+ * Central sync orchestrator for AnyTero. Coordinates between the Zotero item
+ * reader, the Anytype REST client, and the sync state store to create, update,
+ * and delete Anytype objects that mirror Zotero library items.
+ *
+ * Sync strategies:
+ * - **Create**: when no Anytype object exists yet for a Zotero item, a new
+ *   object is created with the full annotation body.
+ * - **Incremental update**: when an object already exists, only annotations
+ *   whose text is not found in the current body are appended. This preserves
+ *   any manual edits the user has made in Anytype.
+ * - **Delete**: removes the Anytype object and the corresponding sync state
+ *   entry.
+ * - **Full sync**: iterates all items with annotations, calls `syncItem` for
+ *   each, then prunes stale state entries for items no longer in Zotero.
+ */
+
 import { ItemReader } from "../zotero/itemReader";
 import { AnytypeClient } from "../anytype/client";
 import {
@@ -10,13 +29,21 @@ import { toCreatePayload, toUpdatePayload } from "../anytype/mapper";
 import type { SpaceConfig } from "../anytype/mapper";
 import { SyncState } from "./syncState";
 
+/** Progress snapshot passed to `ProgressCallback` during a full sync. */
 export interface SyncProgress {
   current: number;
   total: number;
 }
 
+/** Callback invoked after each item is processed during `fullSync`. */
 export type ProgressCallback = (progress: SyncProgress) => void;
 
+/**
+ * Orchestrates annotation sync between Zotero and Anytype.
+ *
+ * Must be configured with a `SpaceConfig` (via `setSpaceConfig`) before any
+ * sync operations are called.
+ */
 export class SyncEngine {
   private _itemReader: ItemReader;
   private _client: AnytypeClient;
@@ -29,10 +56,21 @@ export class SyncEngine {
     this._state = state;
   }
 
+  /** Sets the Anytype space configuration. Must be called before syncing. */
   setSpaceConfig(config: SpaceConfig): void {
     this._spaceConfig = config;
   }
 
+  /**
+   * Syncs a single Zotero item to Anytype.
+   *
+   * - If no Anytype object exists: creates one with the full annotation body.
+   * - If an object exists: fetches the current body, finds annotations not yet
+   *   present (by text), and appends them. No-ops if nothing new.
+   *
+   * Errors are logged and swallowed so a single failure doesn't abort a full
+   * sync batch.
+   */
   async syncItem(zoteroItemId: number): Promise<void> {
     if (!this._spaceConfig) {
       ztoolkit.log(
@@ -101,6 +139,10 @@ export class SyncEngine {
     }
   }
 
+  /**
+   * Deletes the Anytype object for a removed Zotero item and clears the sync
+   * state entry. No-ops if no object is tracked for the given key.
+   */
   async deleteItem(zoteroItemKey: string): Promise<void> {
     if (!this._spaceConfig) return;
 
@@ -121,6 +163,14 @@ export class SyncEngine {
     }
   }
 
+  /**
+   * Syncs all Zotero items with annotations. After syncing, prunes sync state
+   * entries for items that no longer exist in the Zotero library.
+   *
+   * @param onProgress - Optional callback invoked after each item with the
+   *   current and total counts.
+   * @returns The number of items processed.
+   */
   async fullSync(onProgress?: ProgressCallback): Promise<number> {
     if (!this._spaceConfig) {
       ztoolkit.log("SyncEngine: no space config, skipping full sync");

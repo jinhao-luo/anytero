@@ -1,8 +1,24 @@
+/**
+ * @file ztoolkit.ts
+ *
+ * Creates and configures the `ZoteroToolkit` instance used throughout the
+ * plugin. Called on every main-window load so that the toolkit is bound to the
+ * correct window context.
+ *
+ * Configuration applied:
+ * - Log prefix set to `[AnyTero]`.
+ * - Console logging disabled in production builds.
+ * - Element JSON/DOM logging enabled in development.
+ * - Plugin ID registered for toolkit internals.
+ * - Default progress-window icon set to the plugin favicon.
+ */
+
 import { ZoteroToolkit } from "zotero-plugin-toolkit";
 import { config } from "../../package.json";
 
 export { createZToolkit };
 
+/** Creates a new `ZoteroToolkit` instance with AnyTero-specific configuration. */
 function createZToolkit() {
   const _ztoolkit = new ZoteroToolkit();
   /**

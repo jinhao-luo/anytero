@@ -1,3 +1,15 @@
+/**
+ * @file hooks.ts
+ *
+ * Zotero lifecycle hook handlers and preference-pane event handlers for
+ * AnyTero. This is the primary orchestration layer: it wires Zotero startup /
+ * shutdown events to the sync subsystem, and routes user actions from the
+ * preferences pane (setup wizard, manual sync, dropdown population) to the
+ * appropriate module.
+ *
+ * Exported object is consumed by `bootstrap.js` via `addon.hooks.*`.
+ */
+
 import { config } from "../package.json";
 import { getString, initLocale } from "./utils/locale";
 import { ItemReader } from "./modules/zotero/itemReader";
@@ -8,6 +20,11 @@ import { SyncEngine } from "./modules/sync/syncEngine";
 import { SyncState } from "./modules/sync/syncState";
 import { createZToolkit } from "./utils/ztoolkit";
 
+/**
+ * Called by `bootstrap.js` once Zotero is fully initialised.
+ * Waits for Zotero's own async readiness promises, initialises locale, then
+ * runs `onMainWindowLoad` for every already-open main window.
+ */
 async function onStartup() {
   await Promise.all([
     Zotero.initializationPromise,
@@ -22,6 +39,11 @@ async function onStartup() {
   );
 }
 
+/**
+ * Called each time a Zotero main window opens (including on startup).
+ * Registers the AnyTero preferences pane and, if the plugin is already
+ * configured, initialises the sync stack.
+ */
 async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   addon.data.ztoolkit = createZToolkit();
 
@@ -38,11 +60,17 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   await _initSyncIfConfigured();
 }
 
+/** Called when a main window is closing. Cleans up the notifier and toolkit registrations. */
 async function onMainWindowUnload(_win: Window): Promise<void> {
   addon.data.notifierListener?.unregister();
   ztoolkit.unregisterAll();
 }
 
+/**
+ * Called when the plugin is disabled or Zotero is shutting down.
+ * Unregisters all listeners, marks the addon as dead, and removes the
+ * `Zotero.AnyTero` global.
+ */
 function onShutdown(): void {
   addon.data.notifierListener?.unregister();
   ztoolkit.unregisterAll();
@@ -51,6 +79,11 @@ function onShutdown(): void {
   delete Zotero[config.addonInstance];
 }
 
+/**
+ * Global Zotero notifier callback (routed from `bootstrap.js`).
+ * AnyTero does not use this hook — annotation events are handled directly
+ * inside `NotifierListener` which registers its own observer.
+ */
 async function onNotify(
   _event: string,
   _type: string,
@@ -60,6 +93,16 @@ async function onNotify(
   // Annotation events are handled by NotifierListener directly
 }
 
+/**
+ * Routes events emitted by the preference pane XUL script.
+ *
+ * | `type`        | Triggered by                                      |
+ * |---------------|---------------------------------------------------|
+ * | `"load"`      | Preferences pane opening                          |
+ * | `"spaceChange"` | User changing the space dropdown selection      |
+ * | `"syncNow"`   | User clicking the "Sync Now" button               |
+ * | `"setup"`     | User clicking the "Setup" / "Re-setup" button     |
+ */
 async function onPrefsEvent(type: string, data: { [key: string]: unknown }) {
   switch (type) {
     case "load":
@@ -81,6 +124,12 @@ async function onPrefsEvent(type: string, data: { [key: string]: unknown }) {
 
 // ── Internal helpers ────────────────────────────────────────────────────────
 
+/**
+ * Reads persisted prefs and, when the plugin is fully configured, constructs
+ * and wires up the sync stack: `AnytypeClient` → `SyncEngine` → optionally
+ * `NotifierListener` (for realtime mode). Idempotent — safe to call multiple
+ * times; a new stack replaces the old one.
+ */
 async function _initSyncIfConfigured(): Promise<void> {
   const apiKey = Zotero.Prefs.get(
     `${config.prefsPrefix}.apiKey`,
@@ -133,6 +182,10 @@ async function _initSyncIfConfigured(): Promise<void> {
   ztoolkit.log("AnyTero: sync system initialized, mode:", syncMode);
 }
 
+/**
+ * Fetches the user's Anytype spaces and populates the space `<menulist>` in
+ * the preferences pane. No-ops if no API key is set or the pane isn't open.
+ */
 async function _populateSpaceDropdown(): Promise<void> {
   ztoolkit.log(
     "AnyTero: _populateSpaceDropdown called, client:",
@@ -186,6 +239,11 @@ async function _populateSpaceDropdown(): Promise<void> {
   }
 }
 
+/**
+ * Fetches the object types available in the currently selected Anytype space
+ * and populates the object type `<menulist>`. Called on pane load and whenever
+ * the space selection changes.
+ */
 async function _populateObjectTypeDropdown(): Promise<void> {
   const doc = (addon.data.prefsWindow as any)?.document;
   if (!doc) return;
@@ -227,6 +285,11 @@ async function _populateObjectTypeDropdown(): Promise<void> {
   }
 }
 
+/**
+ * Runs the one-time space setup wizard: ensures the `Zotero Link` property
+ * exists in the chosen space, persists the resulting `SpaceConfig`, and
+ * reinitialises the sync stack. Shows a progress window throughout.
+ */
 async function _runSetupWizard(): Promise<void> {
   const apiKey = Zotero.Prefs.get(
     `${config.prefsPrefix}.apiKey`,
@@ -291,6 +354,11 @@ async function _runSetupWizard(): Promise<void> {
   }
 }
 
+/**
+ * Triggers `SyncEngine.fullSync` and displays a progress window with a live
+ * percentage counter. The window stays open after completion so the user can
+ * see the final count or any error message.
+ */
 async function _runFullSync(): Promise<void> {
   const engine = addon.data.syncEngine;
   if (!engine) {

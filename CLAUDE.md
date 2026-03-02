@@ -60,3 +60,15 @@ src/modules/sync/       — syncEngine (orchestration), syncState (ID mapping pe
 ## Data Model
 
 Anytype object type: `Book Note` (one per Zotero item). Object has a `Zotero Link` property (`zotero://select/...`). Body lists annotations as markdown links: `[text](zotero://open-pdf/library/items/ATTKEY?page=PAGE&annotation=KEY)`. Sync state (Zotero key → Anytype object ID) is persisted as JSON in `Zotero.Prefs`.
+
+## Reference Docs
+
+- `architecture.md` — full module breakdown, data flow diagrams, design decisions; read before making architectural changes
+- `scaffold.md` — build/release/template docs (original README from zotero-plugin-template)
+- `README.md` — project-facing README (installation, setup, features)
+
+## Code Documentation Style
+
+- File-level: `/** @file … */` block at top of every `.ts` file
+- Class/function-level: full JSDoc for non-trivial public members; single-line `/** */` for simple ones
+- Private helpers that are self-explanatory can be left undocumented

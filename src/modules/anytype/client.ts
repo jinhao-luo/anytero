@@ -1,41 +1,75 @@
+/**
+ * @file client.ts
+ *
+ * Typed HTTP client for the Anytype local REST API
+ * (`http://127.0.0.1:<port>/v1`). All communication with Anytype goes through
+ * this module. The Anytype desktop application must be running for any calls
+ * to succeed.
+ *
+ * API version pinned to `2025-11-08`. Authentication uses a Bearer token
+ * obtained from Anytype Settings → API Keys.
+ */
+
 const ANYTYPE_API_VERSION = "2025-11-08";
 
+/** Minimal representation of an Anytype space returned by `GET /spaces`. */
 export interface AnytypeSpace {
   id: string;
   name: string;
 }
 
+/** Minimal representation of an Anytype object or type (shared shape). */
 export interface AnytypeObject {
   id: string;
   name: string;
 }
 
+/** A property (relation) defined in an Anytype space. */
 export interface AnytypeProperty {
+  /** Internal stable key used when attaching a value to an object. */
   key: string;
   name: string;
+  /** Anytype format string, e.g. `"url"`, `"text"`, `"number"`. */
   format: string;
 }
 
+/**
+ * A property key paired with its value, as expected by the Anytype API when
+ * creating or updating objects. The discriminant is the value field name.
+ */
 export type PropertyWithValue =
   | { key: string; url: string }
   | { key: string; text: string }
   | { key: string; number: number }
   | { key: string; checkbox: boolean };
 
+/** Request body for `POST /spaces/:id/objects`. */
 export interface CreateObjectPayload {
   name: string;
   icon?: string;
+  /** Markdown body text. */
   body?: string;
+  /** Key of the Anytype object type to assign. */
   type_key: string;
   properties?: PropertyWithValue[];
 }
 
+/** Request body for `PATCH /spaces/:id/objects/:objectId`. All fields optional. */
 export interface UpdateObjectPayload {
   name?: string;
+  /** Replaces the object's body with this markdown string. */
   markdown?: string;
   properties?: PropertyWithValue[];
 }
 
+/**
+ * HTTP client for the Anytype local REST API.
+ *
+ * Wraps `fetch` with:
+ * - Base URL construction (`http://127.0.0.1:<port>/v1`)
+ * - Required auth and versioning headers
+ * - Error handling (throws on non-2xx responses with the response body)
+ */
 export class AnytypeClient {
   private _baseUrl: string;
   private _apiKey: string;
@@ -74,11 +108,16 @@ export class AnytypeClient {
     return response.json();
   }
 
+  /** Returns all spaces accessible with the configured API key. */
   async listSpaces(): Promise<AnytypeSpace[]> {
     const data = (await this._fetch("/spaces")) as { data: AnytypeSpace[] };
     return data.data ?? [];
   }
 
+  /**
+   * Creates a new object in the given space.
+   * @returns The ID of the newly created object.
+   */
   async createObject(
     spaceId: string,
     payload: CreateObjectPayload,
@@ -90,6 +129,7 @@ export class AnytypeClient {
     return data.object.id;
   }
 
+  /** Partially updates an existing object (PATCH semantics — only supplied fields change). */
   async updateObject(
     spaceId: string,
     objectId: string,
@@ -102,6 +142,10 @@ export class AnytypeClient {
     });
   }
 
+  /**
+   * Fetches a single object. Only the `body` field is currently used by
+   * `SyncEngine` to detect already-synced annotations.
+   */
   async getObject(
     spaceId: string,
     objectId: string,
@@ -114,12 +158,14 @@ export class AnytypeClient {
     return data.object ?? {};
   }
 
+  /** Permanently deletes an object. Called when the corresponding Zotero item is removed. */
   async deleteObject(spaceId: string, objectId: string): Promise<void> {
     await this._fetch(`/spaces/${spaceId}/objects/${objectId}`, {
       method: "DELETE",
     });
   }
 
+  /** Lists all object types defined in a space (used to populate the preference pane dropdown). */
   async listTypes(spaceId: string): Promise<AnytypeObject[]> {
     const data = (await this._fetch(`/spaces/${spaceId}/types`)) as {
       data: AnytypeObject[];
@@ -127,6 +173,11 @@ export class AnytypeClient {
     return data.data ?? [];
   }
 
+  /**
+   * Lists properties (relations) defined in a space, with optional server-side
+   * filtering by name substring. Used by `SpaceBoot` to check whether the
+   * `Zotero Link` property already exists.
+   */
   async listProperties(
     spaceId: string,
     filters?: { nameContains?: string },
@@ -142,6 +193,10 @@ export class AnytypeClient {
     return data.data ?? [];
   }
 
+  /**
+   * Creates a new property in the space.
+   * @returns The stable key of the newly created property.
+   */
   async createProperty(
     spaceId: string,
     payload: Record<string, unknown>,

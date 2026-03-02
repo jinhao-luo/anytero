@@ -1,9 +1,33 @@
+/**
+ * @file bodyRenderer.ts
+ *
+ * Pure functions that convert `ZoteroAnnotation` objects into Anytype-ready
+ * markdown strings. Each annotation becomes a deep-link back into Zotero's
+ * PDF reader (`zotero://open-pdf/…`), optionally followed by a comment block
+ * and tag list.
+ *
+ * Two rendering strategies are exposed:
+ * - `renderAnnotationBody` — full body for a newly created object (with heading
+ *   and horizontal-rule separators between annotations).
+ * - `renderSingleAnnotation` — a compact block used when appending a new
+ *   annotation to an existing object body.
+ */
+
 import type { ZoteroAnnotation } from "../zotero/itemReader";
 
+/**
+ * Ensures `s` ends with exactly two newline characters so that content
+ * appended after it starts on its own paragraph in markdown.
+ */
 export function ensureDoubleNewlineEnding(s: string): string {
   return s.replace(/\n*$/, "\n\n");
 }
 
+/**
+ * Builds a `zotero://open-pdf/…` deep-link URL for the given annotation.
+ * Clicking the link opens Zotero's PDF reader and jumps to the exact page and
+ * annotation position.
+ */
 export function buildAnnotationLink(ann: ZoteroAnnotation): string {
   const base = `zotero://open-pdf/library/items/${ann.attachmentKey}`;
   const params = new URLSearchParams();
@@ -12,6 +36,19 @@ export function buildAnnotationLink(ann: ZoteroAnnotation): string {
   return `${base}?${params.toString()}`;
 }
 
+/**
+ * Renders a single annotation as a compact markdown block (no `---` separator).
+ * Used when appending new annotations to an already-existing Anytype object body.
+ *
+ * Output format:
+ * ```
+ * [Highlighted text](zotero://open-pdf/…)
+ *
+ * 💬 comment (if present)
+ *
+ * 🏷️ `tag1` `tag2` (if any)
+ * ```
+ */
 export function renderSingleAnnotation(ann: ZoteroAnnotation): string {
   const link = buildAnnotationLink(ann);
 
@@ -40,6 +77,13 @@ export function renderSingleAnnotation(ann: ZoteroAnnotation): string {
   return parts.join("\n");
 }
 
+/**
+ * Renders all annotations for an item into a full markdown body, starting with
+ * an `## Annotations` heading. Annotations are separated by `---` horizontal
+ * rules. Returns an empty string when the list is empty.
+ *
+ * Used when creating a brand-new Anytype object.
+ */
 export function renderAnnotationBody(annotations: ZoteroAnnotation[]): string {
   if (annotations.length === 0) return "";
 

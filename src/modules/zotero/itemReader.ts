@@ -1,43 +1,83 @@
+/**
+ * @file itemReader.ts
+ *
+ * Typed facade over the Zotero JavaScript API for reading library items and
+ * their PDF annotations. Converts raw `Zotero.Item` objects into plain
+ * TypeScript interfaces (`ZoteroItem`, `ZoteroAnnotation`) so that the rest of
+ * the codebase remains independent of Zotero internals.
+ *
+ * Notable Zotero API quirks handled here:
+ * - `getAttachments()` returns `number[]` (IDs), not `Item[]`.
+ * - `parentID` is `number | false | null` — truthy check required.
+ * - `Zotero.Items.getAll()` is typed as returning IDs; double-cast needed.
+ */
+
+/** Author / editor / translator metadata for a Zotero library item. */
 export interface ZoteroCreator {
   firstName: string;
   lastName: string;
   creatorType: string;
 }
 
+/**
+ * A single PDF annotation normalised from `Zotero.Item` fields.
+ * `attachmentKey` links back to the parent PDF so a `zotero://open-pdf/…` URL
+ * can be constructed.
+ */
 export interface ZoteroAnnotation {
   id: number;
+  /** Zotero item key (e.g. `"ABCD1234"`). */
   key: string;
+  /** Key of the parent PDF attachment item. */
   attachmentKey: string;
   annotationType: "highlight" | "note" | "image" | "ink" | "underline";
+  /** Highlighted / selected text. Empty string for image / ink annotations. */
   text: string;
   comment: string | null;
   color: string | null;
+  /** Human-readable page label (e.g. `"5"`, `"xii"`). */
   pageLabel: string | null;
+  /** Serialised position data (JSON string from Zotero internals). */
   position: string | null;
   tags: string[];
   dateModified: string;
 }
 
+/** A Zotero library item (journal article, book, etc.) normalised for AnyTero's use. */
 export interface ZoteroItem {
   id: number;
+  /** Zotero item key (e.g. `"ABCD1234"`). Used as the sync state key. */
   key: string;
   title: string;
   itemType: string;
   creators: ZoteroCreator[];
   year: string | null;
   doi: string | null;
+  /** Publication title or publisher, whichever is available. */
   publication: string | null;
   tags: string[];
   dateModified: string;
 }
 
+/**
+ * Reads Zotero library items and their annotations, normalising the raw
+ * Zotero API objects into plain TypeScript interfaces.
+ */
 export class ItemReader {
+  /**
+   * Fetches a single library item by numeric ID.
+   * Returns `null` for attachments, annotations, or unknown IDs.
+   */
   getItem(itemId: number): ZoteroItem | null {
     const item = Zotero.Items.get(itemId);
     if (!item || item.isAnnotation() || item.isAttachment()) return null;
     return this._toZoteroItem(item);
   }
 
+  /**
+   * Returns all PDF annotations for the given item, sorted by page number
+   * (ascending). Skips non-PDF attachments.
+   */
   getAnnotations(item: ZoteroItem): ZoteroAnnotation[] {
     const zItem = Zotero.Items.get(item.id);
     if (!zItem) return [];
@@ -60,6 +100,11 @@ export class ItemReader {
     });
   }
 
+  /**
+   * Returns all items in the user's library that have at least one PDF
+   * annotation. Skips attachments, notes, and standalone annotation items.
+   * Used by `SyncEngine.fullSync`.
+   */
   async getAllItemsWithAnnotations(): Promise<ZoteroItem[]> {
     const results: ZoteroItem[] = [];
     const allItems = (await Zotero.Items.getAll(
