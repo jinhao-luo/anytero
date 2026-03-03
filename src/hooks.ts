@@ -110,9 +110,18 @@ async function onPrefsEvent(type: string, data: { [key: string]: unknown }) {
       await _populateSpaceDropdown();
       await _populateObjectTypeDropdown();
       break;
-    case "spaceChange":
+    case "spaceChange": {
+      // Clear the stale object type selection so the user must re-pick one for
+      // the newly selected space.
+      Zotero.Prefs.set(`${config.prefsPrefix}.objectTypeKey`, "", true);
+      const doc = (addon.data.prefsWindow as any)?.document;
+      const typeMenulist = doc?.getElementById(
+        "anytero-pref-object-type",
+      ) as any;
+      if (typeMenulist) typeMenulist.value = "";
       await _populateObjectTypeDropdown();
       break;
+    }
     case "syncNow":
       await _runFullSync();
       break;
@@ -279,7 +288,11 @@ async function _populateObjectTypeDropdown(): Promise<void> {
       item.setAttribute("label", type.name);
       popup.appendChild(item);
     }
-    ztoolkit.log("AnyTero: object type dropdown populated with", types.length, "types");
+    ztoolkit.log(
+      "AnyTero: object type dropdown populated with",
+      types.length,
+      "types",
+    );
   } catch (e) {
     ztoolkit.log("AnyTero: failed to load types for dropdown", e);
   }
@@ -291,6 +304,13 @@ async function _populateObjectTypeDropdown(): Promise<void> {
  * reinitialises the sync stack. Shows a progress window throughout.
  */
 async function _runSetupWizard(): Promise<void> {
+  const win = addon.data.prefsWindow as any;
+  const confirmed = win?.confirm(
+    'The Setup Wizard will create a "Zotero Link" property in the selected Anytype Space if it does not exist.',
+    "Continue?",
+  );
+  if (!confirmed) return;
+
   const apiKey = Zotero.Prefs.get(
     `${config.prefsPrefix}.apiKey`,
     true,
@@ -337,6 +357,11 @@ async function _runSetupWizard(): Promise<void> {
       JSON.stringify(spaceConfig),
       true,
     );
+
+    // Clear sync state so stale Anytype object IDs from a previous setup
+    // (possibly a different space or object type) don't linger. A subsequent
+    // full sync will repopulate the state from scratch.
+    new SyncState().clear();
 
     addon.data.notifierListener?.unregister();
     await _initSyncIfConfigured();

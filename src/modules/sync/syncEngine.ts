@@ -19,12 +19,7 @@
 
 import { ItemReader } from "../zotero/itemReader";
 import { AnytypeClient } from "../anytype/client";
-import {
-  renderAnnotationBody,
-  renderSingleAnnotation,
-  buildAnnotationLink,
-  ensureDoubleNewlineEnding,
-} from "../anytype/bodyRenderer";
+import { joinAnnotations, appendAnnotations } from "../anytype/bodyRenderer";
 import { toCreatePayload, toUpdatePayload } from "../anytype/mapper";
 import type { SpaceConfig } from "../anytype/mapper";
 import { SyncState } from "./syncState";
@@ -87,43 +82,76 @@ export class SyncEngine {
     }
 
     const annotations = this._itemReader.getAnnotations(item);
-    const { spaceId } = this._spaceConfig;
+    const { spaceId, relations } = this._spaceConfig;
+    // TOOD: make making zotero urls helper functions
+    const expectedZoteroLink = `zotero://select/library/items/${item.key}`;
 
-    const existingObjectId = this._state.getObjectId(item.key);
+    // Validate the tracked Anytype object (if any): it must exist, not be
+    // archived, and have the correct Zotero Link property. If any check
+    // fails, discard the stale state entry and fall through to create.
+    let trackedObjectId = this._state.getObjectId(item.key);
+    let existingBody = "";
+
+    if (trackedObjectId) {
+      try {
+        const existing = await this._client.getObject(spaceId, trackedObjectId);
+        const isArchived = existing.archived;
+        const zoteroLinkProp = existing.properties.find(
+          (p) => p.key === relations.zoteroLink,
+        );
+        const hasCorrectLink = zoteroLinkProp?.url === expectedZoteroLink;
+
+        if (isArchived || !hasCorrectLink) {
+          ztoolkit.log(
+            "SyncEngine: tracked object invalid for",
+            item.key,
+            "(archived:",
+            isArchived,
+            ", correct link:",
+            hasCorrectLink,
+            ") — recreating",
+          );
+          this._state.remove(item.key);
+          trackedObjectId = null;
+        } else {
+          existingBody = existing.markdown.trimEnd();
+        }
+      } catch (e) {
+        ztoolkit.log(
+          "SyncEngine: failed to fetch tracked object for",
+          item.key,
+          "— recreating:",
+          e,
+        );
+        this._state.remove(item.key);
+        trackedObjectId = null;
+      }
+    }
 
     try {
-      if (existingObjectId) {
-        const existing = await this._client.getObject(
-          spaceId,
-          existingObjectId,
-        );
-        const existingBody = existing.body ?? "";
-
+      if (trackedObjectId !== null) {
+        // Incremental update: append only annotations not already in the body.
         const newAnnotations = annotations.filter(
-          (ann) => !existingBody.includes(ann.text),
+          (ann) => !existingBody.includes(ann.text.trim()),
         );
 
-        let body: string;
         if (newAnnotations.length === 0) {
           ztoolkit.log("SyncEngine: no new annotations for", item.key);
           return;
-        } else {
-          const newChunks = newAnnotations
-            .map(renderSingleAnnotation)
-            .join("\n\n");
-          body = ensureDoubleNewlineEnding(existingBody) + newChunks;
         }
 
-        const payload = { markdown: body };
-        await this._client.updateObject(spaceId, existingObjectId, payload);
+        const body = appendAnnotations(existingBody, newAnnotations);
+        await this._client.updateObject(spaceId, trackedObjectId, {
+          markdown: body,
+        });
         ztoolkit.log(
           "SyncEngine: updated object",
-          existingObjectId,
+          trackedObjectId,
           "for item",
           item.key,
         );
       } else {
-        const body = renderAnnotationBody(annotations);
+        const body = joinAnnotations(annotations);
         const payload = toCreatePayload(item, body, this._spaceConfig);
         const objectId = await this._client.createObject(spaceId, payload);
         this._state.set(item.key, objectId);

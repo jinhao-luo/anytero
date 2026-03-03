@@ -16,10 +16,11 @@
 import type { ZoteroAnnotation } from "../zotero/itemReader";
 
 /**
- * Ensures `s` ends with exactly two newline characters so that content
+ * Ensures `s` (is empty or ) ends with exactly two newline characters so that content
  * appended after it starts on its own paragraph in markdown.
  */
 export function ensureDoubleNewlineEnding(s: string): string {
+  s.trimEnd();
   return s.replace(/\n*$/, "\n\n");
 }
 
@@ -77,6 +78,32 @@ export function renderSingleAnnotation(ann: ZoteroAnnotation): string {
   return parts.join("\n");
 }
 
+/** Separator inserted between annotation blocks in the object body. */
+const ANNOTATION_SEPARATOR = "\n\n\n\n";
+
+/**
+ * Joins a list of annotations into a single body string, rendering each with
+ * `renderSingleAnnotation` and separating them with `ANNOTATION_SEPARATOR`.
+ * Returns an empty string when the list is empty.
+ */
+export function joinAnnotations(annotations: ZoteroAnnotation[]): string {
+  return annotations.map(renderSingleAnnotation).join(ANNOTATION_SEPARATOR);
+}
+
+/**
+ * Appends new annotations to an existing body string. If the body is empty the
+ * new chunks are returned as-is; otherwise the separator is inserted between
+ * the existing content and the new chunks.
+ */
+export function appendAnnotations(
+  existingBody: string,
+  newAnnotations: ZoteroAnnotation[],
+): string {
+  const newChunks = joinAnnotations(newAnnotations);
+  if (existingBody.length === 0) return newChunks;
+  return existingBody + ANNOTATION_SEPARATOR + newChunks;
+}
+
 /**
  * Renders all annotations for an item into a full markdown body, starting with
  * an `## Annotations` heading. Annotations are separated by `---` horizontal
@@ -122,7 +149,10 @@ export function renderAnnotationBody(annotations: ZoteroAnnotation[]): string {
   }
 
   // Remove trailing separator
-  while (lines.length > 0 && (lines[lines.length - 1] === "---" || lines[lines.length - 1] === "")) {
+  while (
+    lines.length > 0 &&
+    (lines[lines.length - 1] === "---" || lines[lines.length - 1] === "")
+  ) {
     lines.pop();
   }
 

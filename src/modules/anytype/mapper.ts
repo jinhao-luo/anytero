@@ -53,7 +53,7 @@ export function toUpdatePayload(
 ): UpdateObjectPayload {
   return {
     name: item.title,
-    body,
+    markdown: body,
     properties: buildProperties(item, config),
   };
 }

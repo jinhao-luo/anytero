@@ -24,6 +24,30 @@ export interface AnytypeObject {
   name: string;
 }
 
+/** A property value as returned by the Anytype API when fetching an object. */
+export interface ObjectPropertyValue {
+  /** The format of the property. */
+  format:
+    | "text"
+    | "number"
+    | "select"
+    | "multi_select"
+    | "date"
+    | "files"
+    | "checkbox"
+    | "url"
+    | "email"
+    | "phone"
+    | "objects";
+  /** The key of the property. */
+  // TODO: consider cases when multiple properties call "Zotero Link" exist
+  key: string;
+  /** The name of the property. */
+  name: string;
+  /** The URL value of the property. Present when format is `url`. */
+  url?: string;
+}
+
 /** A property (relation) defined in an Anytype space. */
 export interface AnytypeProperty {
   /** Internal stable key used when attaching a value to an object. */
@@ -75,6 +99,7 @@ export class AnytypeClient {
   private _apiKey: string;
 
   constructor(port: number, apiKey: string) {
+    // TODO: allow hostname to be configurable (currently hardcoded to 127.0.0.1)
     this._baseUrl = `http://127.0.0.1:${port}/v1`;
     this._apiKey = apiKey;
   }
@@ -143,17 +168,26 @@ export class AnytypeClient {
   }
 
   /**
-   * Fetches a single object. Only the `body` field is currently used by
-   * `SyncEngine` to detect already-synced annotations.
+   * Fetches a single object. Returns the body, archived flag, and properties
+   * so the caller can validate that the object is still healthy before
+   * performing an incremental update.
    */
   async getObject(
     spaceId: string,
     objectId: string,
-  ): Promise<{ body?: string }> {
+  ): Promise<{
+    markdown: string;
+    archived: boolean;
+    properties: ObjectPropertyValue[];
+  }> {
     const data = (await this._fetch(
       `/spaces/${spaceId}/objects/${objectId}`,
     )) as {
-      object: { body?: string };
+      object: {
+        markdown: string;
+        archived: boolean;
+        properties: ObjectPropertyValue[];
+      };
     };
     return data.object ?? {};
   }
