@@ -61,10 +61,10 @@ export class SyncEngine {
    *
    * - If no Anytype object exists: creates one with the full annotation body.
    * - If an object exists: fetches the current body, finds annotations not yet
-   *   present (by text), and appends them. No-ops if nothing new.
+   *   present (by key), and appends them. No-ops if nothing new.
    *
-   * Errors are logged and swallowed so a single failure doesn't abort a full
-   * sync batch.
+   * All errors are caught and logged so a single item failure never aborts a
+   * full sync batch.
    */
   async syncItem(zoteroItemId: number): Promise<void> {
     if (!this._spaceConfig) {
@@ -75,64 +75,67 @@ export class SyncEngine {
       return;
     }
 
-    const item = this._itemReader.getItem(zoteroItemId);
-    if (!item) {
-      ztoolkit.log("SyncEngine: item not found", zoteroItemId);
-      return;
-    }
+    try {
+      const item = this._itemReader.getItem(zoteroItemId);
+      if (!item) {
+        ztoolkit.log("SyncEngine: item not found", zoteroItemId);
+        return;
+      }
 
-    const annotations = this._itemReader.getAnnotations(item);
-    const { spaceId, relations } = this._spaceConfig;
-    // TODO: extract zotero URL construction into helper functions
-    const expectedZoteroLink = `zotero://select/library/items/${item.key}`;
+      const annotations = this._itemReader.getAnnotations(item);
+      const { spaceId, relations } = this._spaceConfig;
+      // TODO: extract zotero URL construction into helper functions
+      const expectedZoteroLink = `zotero://select/library/items/${item.key}`;
 
-    // Validate the tracked Anytype object (if any): it must exist, not be
-    // archived, and have the correct Zotero Link property. If any check
-    // fails, discard the stale state entry and fall through to create.
-    let trackedObjectId = this._state.getObjectId(item.key);
-    let existingBody = "";
+      // Validate the tracked Anytype object (if any): it must exist, not be
+      // archived, and have the correct Zotero Link property. If any check
+      // fails, discard the stale state entry and fall through to create.
+      let trackedObjectId = this._state.getObjectId(item.key);
+      let existingBody = "";
 
-    if (trackedObjectId) {
-      try {
-        const existing = await this._client.getObject(spaceId, trackedObjectId);
-        const isArchived = existing.archived;
-        const zoteroLinkProp = existing.properties.find(
-          (p) => p.key === relations.zoteroLink,
-        );
-        const hasCorrectLink = zoteroLinkProp?.url === expectedZoteroLink;
+      if (trackedObjectId) {
+        try {
+          const existing = await this._client.getObject(
+            spaceId,
+            trackedObjectId,
+          );
+          const isArchived = existing.archived;
+          const zoteroLinkProp = existing.properties.find(
+            (p) => p.key === relations.zoteroLink,
+          );
+          const hasCorrectLink = zoteroLinkProp?.url === expectedZoteroLink;
 
-        if (isArchived || !hasCorrectLink) {
+          if (isArchived || !hasCorrectLink) {
+            ztoolkit.log(
+              "SyncEngine: tracked object invalid for",
+              item.key,
+              "(archived:",
+              isArchived,
+              ", correct link:",
+              hasCorrectLink,
+              ") — recreating",
+            );
+            this._state.remove(item.key);
+            trackedObjectId = null;
+          } else {
+            existingBody = existing.markdown.trimEnd();
+          }
+        } catch (e) {
           ztoolkit.log(
-            "SyncEngine: tracked object invalid for",
+            "SyncEngine: failed to fetch tracked object for",
             item.key,
-            "(archived:",
-            isArchived,
-            ", correct link:",
-            hasCorrectLink,
-            ") — recreating",
+            "— recreating:",
+            e,
           );
           this._state.remove(item.key);
           trackedObjectId = null;
-        } else {
-          existingBody = existing.markdown.trimEnd();
         }
-      } catch (e) {
-        ztoolkit.log(
-          "SyncEngine: failed to fetch tracked object for",
-          item.key,
-          "— recreating:",
-          e,
-        );
-        this._state.remove(item.key);
-        trackedObjectId = null;
       }
-    }
 
-    try {
       if (trackedObjectId !== null) {
         // Incremental update: append only annotations not yet in the body.
         // Key-based detection is reliable for all annotation types (including
-        // image/ink which have no text) since each key appears in its link URL.
+        // image/ink which have no text) since each key always appears in its link URL.
         const newAnnotations = annotations.filter(
           (ann) => !existingBody.includes(ann.key),
         );
@@ -165,7 +168,7 @@ export class SyncEngine {
         );
       }
     } catch (e) {
-      ztoolkit.log("SyncEngine: error syncing item", item.key, e);
+      ztoolkit.log("SyncEngine: error syncing item", zoteroItemId, e);
     }
   }
 

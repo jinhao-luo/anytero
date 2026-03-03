@@ -1,6 +1,10 @@
 import { assert } from "chai";
 import { SyncEngine } from "../src/modules/sync/syncEngine";
-import type { ItemReader, ZoteroItem, ZoteroAnnotation } from "../src/modules/zotero/itemReader";
+import type {
+  ItemReader,
+  ZoteroItem,
+  ZoteroAnnotation,
+} from "../src/modules/zotero/itemReader";
 import type { AnytypeClient } from "../src/modules/anytype/client";
 import type { SpaceConfig } from "../src/modules/anytype/mapper";
 
@@ -32,7 +36,9 @@ function makeZoteroItem(overrides: Partial<ZoteroItem> = {}): ZoteroItem {
   };
 }
 
-function makeAnnotation(overrides: Partial<ZoteroAnnotation> = {}): ZoteroAnnotation {
+function makeAnnotation(
+  overrides: Partial<ZoteroAnnotation> = {},
+): ZoteroAnnotation {
   return {
     id: 10,
     key: "ANN001",
@@ -64,13 +70,21 @@ function makeClient(
   existingBody = "",
   trackedItemKey = "ITEM001",
 ): [AnytypeClient, CallLog] {
-  const calls: CallLog = { createObject: [], updateObject: [], deleteObject: [] };
+  const calls: CallLog = {
+    createObject: [],
+    updateObject: [],
+    deleteObject: [],
+  };
   const client = {
     async createObject(spaceId: string, payload: unknown): Promise<string> {
       calls.createObject.push({ spaceId, payload });
       return createObjectReturn;
     },
-    async updateObject(spaceId: string, objectId: string, payload: unknown): Promise<void> {
+    async updateObject(
+      spaceId: string,
+      objectId: string,
+      payload: unknown,
+    ): Promise<void> {
       calls.updateObject.push({ spaceId, objectId, payload });
     },
     async deleteObject(spaceId: string, objectId: string): Promise<void> {
@@ -105,10 +119,16 @@ function makeState(initial: StateStore = {}) {
   return {
     state: {
       getObjectId: (key: string) => store[key] ?? null,
-      set: (key: string, id: string) => { store[key] = id; },
-      remove: (key: string) => { delete store[key]; },
+      set: (key: string, id: string) => {
+        store[key] = id;
+      },
+      remove: (key: string) => {
+        delete store[key];
+      },
       getAll: () => ({ ...store }),
-      clear: () => { for (const k of Object.keys(store)) delete store[k]; },
+      clear: () => {
+        for (const k of Object.keys(store)) delete store[k];
+      },
     },
     store,
   };
@@ -168,7 +188,11 @@ describe("SyncEngine", function () {
       const [client, calls] = makeClient("obj-created");
       const { state, store } = makeState(); // empty state
       const item = makeZoteroItem();
-      const engine = new SyncEngine(makeItemReader([item]), client, state as any);
+      const engine = new SyncEngine(
+        makeItemReader([item]),
+        client,
+        state as any,
+      );
       engine.setSpaceConfig(testConfig);
 
       await engine.syncItem(item.id);
@@ -182,7 +206,11 @@ describe("SyncEngine", function () {
       const [client] = makeClient("obj-created");
       const { state, store } = makeState();
       const item = makeZoteroItem({ key: "ITEM001" });
-      const engine = new SyncEngine(makeItemReader([item]), client, state as any);
+      const engine = new SyncEngine(
+        makeItemReader([item]),
+        client,
+        state as any,
+      );
       engine.setSpaceConfig(testConfig);
 
       await engine.syncItem(item.id);
@@ -194,7 +222,11 @@ describe("SyncEngine", function () {
       const [client, calls] = makeClient();
       const { state } = makeState();
       const item = makeZoteroItem();
-      const engine = new SyncEngine(makeItemReader([item]), client, state as any);
+      const engine = new SyncEngine(
+        makeItemReader([item]),
+        client,
+        state as any,
+      );
       engine.setSpaceConfig(testConfig);
 
       await engine.syncItem(item.id);
@@ -209,7 +241,11 @@ describe("SyncEngine", function () {
       const [client, calls] = makeClient();
       const item = makeZoteroItem({ key: "ITEM001" });
       const { state } = makeState({ ITEM001: "existing-obj-id" });
-      const engine = new SyncEngine(makeItemReader([item]), client, state as any);
+      const engine = new SyncEngine(
+        makeItemReader([item]),
+        client,
+        state as any,
+      );
       engine.setSpaceConfig(testConfig);
 
       await engine.syncItem(item.id);
@@ -224,7 +260,11 @@ describe("SyncEngine", function () {
       const [client] = makeClient();
       const item = makeZoteroItem({ key: "ITEM001" });
       const { state, store } = makeState({ ITEM001: "existing-obj-id" });
-      const engine = new SyncEngine(makeItemReader([item]), client, state as any);
+      const engine = new SyncEngine(
+        makeItemReader([item]),
+        client,
+        state as any,
+      );
       engine.setSpaceConfig(testConfig);
 
       await engine.syncItem(item.id);
@@ -236,7 +276,11 @@ describe("SyncEngine", function () {
       const [client, calls] = makeClient();
       const item = makeZoteroItem({ key: "ITEM001" });
       const { state } = makeState({ ITEM001: "existing-obj-id" });
-      const engine = new SyncEngine(makeItemReader([item]), client, state as any);
+      const engine = new SyncEngine(
+        makeItemReader([item]),
+        client,
+        state as any,
+      );
       engine.setSpaceConfig(testConfig);
 
       await engine.syncItem(item.id);
@@ -249,17 +293,27 @@ describe("SyncEngine", function () {
   describe("syncItem — error handling", function () {
     it("does not throw when client.createObject rejects", async function () {
       const failClient = {
-        createObject: async () => { throw new Error("API down"); },
+        createObject: async () => {
+          throw new Error("API down");
+        },
         updateObject: async () => {},
         deleteObject: async () => {},
-        getObject: async () => ({ markdown: "", archived: false, properties: [] }),
+        getObject: async () => ({
+          markdown: "",
+          archived: false,
+          properties: [],
+        }),
         listSpaces: async () => [],
         listTypes: async () => [],
       } as unknown as AnytypeClient;
 
       const { state } = makeState();
       const item = makeZoteroItem();
-      const engine = new SyncEngine(makeItemReader([item]), failClient, state as any);
+      const engine = new SyncEngine(
+        makeItemReader([item]),
+        failClient,
+        state as any,
+      );
       engine.setSpaceConfig(testConfig);
 
       // SyncEngine catches errors internally; the promise should resolve
@@ -269,13 +323,20 @@ describe("SyncEngine", function () {
     it("does not throw when client.updateObject rejects", async function () {
       const failClient = {
         createObject: async () => "id",
-        updateObject: async () => { throw new Error("API down"); },
+        updateObject: async () => {
+          throw new Error("API down");
+        },
         deleteObject: async () => {},
         getObject: async () => ({
           markdown: "",
           archived: false,
           properties: [
-            { key: testConfig.relations.zoteroLink, url: "zotero://select/library/items/ITEM001", format: "url", name: "Zotero Link" },
+            {
+              key: testConfig.relations.zoteroLink,
+              url: "zotero://select/library/items/ITEM001",
+              format: "url",
+              name: "Zotero Link",
+            },
           ],
         }),
         listSpaces: async () => [],
@@ -284,11 +345,85 @@ describe("SyncEngine", function () {
 
       const item = makeZoteroItem({ key: "ITEM001" });
       const { state } = makeState({ ITEM001: "existing-id" });
-      const engine = new SyncEngine(makeItemReader([item]), failClient, state as any);
+      const engine = new SyncEngine(
+        makeItemReader([item]),
+        failClient,
+        state as any,
+      );
       engine.setSpaceConfig(testConfig);
 
       // SyncEngine catches errors internally; the promise should resolve
       await engine.syncItem(item.id);
+    });
+
+    it("does not throw when itemReader.getItem throws", async function () {
+      const [client] = makeClient();
+      const { state } = makeState();
+      const throwingReader = {
+        getItem: (_id: number) => {
+          throw new Error("Zotero DB error");
+        },
+        getAnnotations: () => [],
+        getAllItemsWithAnnotations: async () => [],
+      } as unknown as ItemReader;
+      const engine = new SyncEngine(throwingReader, client, state as any);
+      engine.setSpaceConfig(testConfig);
+
+      // Must not throw even when the Zotero read itself fails
+      await engine.syncItem(1);
+    });
+
+    it("does not throw when itemReader.getAnnotations throws", async function () {
+      const [client] = makeClient();
+      const { state } = makeState();
+      const item = makeZoteroItem();
+      const throwingReader = {
+        getItem: (_id: number) => item,
+        getAnnotations: (_item: ZoteroItem) => {
+          throw new Error("Zotero DB error");
+        },
+        getAllItemsWithAnnotations: async () => [],
+      } as unknown as ItemReader;
+      const engine = new SyncEngine(throwingReader, client, state as any);
+      engine.setSpaceConfig(testConfig);
+
+      await engine.syncItem(item.id);
+    });
+  });
+
+  describe("syncItem — error isolation in fullSync", function () {
+    it("continues syncing remaining items when one item's getAnnotations throws", async function () {
+      const [client, calls] = makeClient();
+      const { state } = makeState();
+      const item1 = makeZoteroItem({ id: 1, key: "K1" });
+      const item2 = makeZoteroItem({ id: 2, key: "K2" });
+      const item3 = makeZoteroItem({ id: 3, key: "K3" });
+
+      // item2's getAnnotations throws; items 1 and 3 should still be synced
+      const partialReader = {
+        getItem: (id: number) =>
+          [item1, item2, item3].find((i) => i.id === id) ?? null,
+        getAnnotations: (item: ZoteroItem) => {
+          if (item.key === "K2") throw new Error("Zotero DB error for K2");
+          return [makeAnnotation({ key: `ANN-${item.key}` })];
+        },
+        getAllItemsWithAnnotations: async () => [item1, item2, item3],
+      } as unknown as ItemReader;
+
+      const engine = new SyncEngine(partialReader, client, state as any);
+      engine.setSpaceConfig(testConfig);
+
+      const count = await engine.fullSync();
+
+      // All 3 items are counted (fullSync iterates all regardless of per-item errors)
+      assert.strictEqual(count, 3);
+      // Items 1 and 3 produced successful createObject calls; item 2 was skipped
+      assert.lengthOf(calls.createObject, 2);
+      const createdKeys = calls.createObject.map(
+        (c) => (c.payload as any).properties[0].url,
+      );
+      assert.include(createdKeys, "zotero://select/library/items/K1");
+      assert.include(createdKeys, "zotero://select/library/items/K3");
     });
   });
 
@@ -342,14 +477,24 @@ describe("SyncEngine", function () {
       const failClient = {
         createObject: async () => "id",
         updateObject: async () => {},
-        deleteObject: async () => { throw new Error("not found"); },
-        getObject: async () => ({ markdown: "", archived: false, properties: [] }),
+        deleteObject: async () => {
+          throw new Error("not found");
+        },
+        getObject: async () => ({
+          markdown: "",
+          archived: false,
+          properties: [],
+        }),
         listSpaces: async () => [],
         listTypes: async () => [],
       } as unknown as AnytypeClient;
 
       const { state } = makeState({ ITEM001: "obj-id" });
-      const engine = new SyncEngine(makeItemReader([]), failClient, state as any);
+      const engine = new SyncEngine(
+        makeItemReader([]),
+        failClient,
+        state as any,
+      );
       engine.setSpaceConfig(testConfig);
 
       // SyncEngine catches errors internally; the promise should resolve
@@ -362,7 +507,11 @@ describe("SyncEngine", function () {
       const [client, calls] = makeClient();
       const { state } = makeState();
       const item = makeZoteroItem();
-      const engine = new SyncEngine(makeItemReader([item]), client, state as any);
+      const engine = new SyncEngine(
+        makeItemReader([item]),
+        client,
+        state as any,
+      );
 
       const count = await engine.fullSync();
 
@@ -373,8 +522,15 @@ describe("SyncEngine", function () {
     it("returns the number of items synced", async function () {
       const [client] = makeClient();
       const { state } = makeState();
-      const items = [makeZoteroItem({ id: 1, key: "K1" }), makeZoteroItem({ id: 2, key: "K2" })];
-      const engine = new SyncEngine(makeItemReader(items), client, state as any);
+      const items = [
+        makeZoteroItem({ id: 1, key: "K1" }),
+        makeZoteroItem({ id: 2, key: "K2" }),
+      ];
+      const engine = new SyncEngine(
+        makeItemReader(items),
+        client,
+        state as any,
+      );
       engine.setSpaceConfig(testConfig);
 
       const count = await engine.fullSync();
@@ -385,8 +541,15 @@ describe("SyncEngine", function () {
     it("calls syncItem for each item returned by getAllItemsWithAnnotations", async function () {
       const [client, calls] = makeClient();
       const { state } = makeState();
-      const items = [makeZoteroItem({ id: 1, key: "K1" }), makeZoteroItem({ id: 2, key: "K2" })];
-      const engine = new SyncEngine(makeItemReader(items), client, state as any);
+      const items = [
+        makeZoteroItem({ id: 1, key: "K1" }),
+        makeZoteroItem({ id: 2, key: "K2" }),
+      ];
+      const engine = new SyncEngine(
+        makeItemReader(items),
+        client,
+        state as any,
+      );
       engine.setSpaceConfig(testConfig);
 
       await engine.fullSync();
@@ -397,8 +560,15 @@ describe("SyncEngine", function () {
     it("invokes progress callback for each item", async function () {
       const [client] = makeClient();
       const { state } = makeState();
-      const items = [makeZoteroItem({ id: 1, key: "K1" }), makeZoteroItem({ id: 2, key: "K2" })];
-      const engine = new SyncEngine(makeItemReader(items), client, state as any);
+      const items = [
+        makeZoteroItem({ id: 1, key: "K1" }),
+        makeZoteroItem({ id: 2, key: "K2" }),
+      ];
+      const engine = new SyncEngine(
+        makeItemReader(items),
+        client,
+        state as any,
+      );
       engine.setSpaceConfig(testConfig);
 
       const progressReports: Array<{ current: number; total: number }> = [];
@@ -415,7 +585,11 @@ describe("SyncEngine", function () {
       // State has two entries; only K1 is returned by getAllItemsWithAnnotations
       const { state, store } = makeState({ K1: "obj-1", STALE: "obj-stale" });
       const items = [makeZoteroItem({ id: 1, key: "K1" })];
-      const engine = new SyncEngine(makeItemReader(items), client, state as any);
+      const engine = new SyncEngine(
+        makeItemReader(items),
+        client,
+        state as any,
+      );
       engine.setSpaceConfig(testConfig);
 
       await engine.fullSync();
@@ -427,7 +601,11 @@ describe("SyncEngine", function () {
       const [client] = makeClient();
       const { state, store } = makeState({ K1: "obj-1" });
       const items = [makeZoteroItem({ id: 1, key: "K1" })];
-      const engine = new SyncEngine(makeItemReader(items), client, state as any);
+      const engine = new SyncEngine(
+        makeItemReader(items),
+        client,
+        state as any,
+      );
       engine.setSpaceConfig(testConfig);
 
       await engine.fullSync();
