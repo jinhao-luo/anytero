@@ -5,24 +5,10 @@
  * markdown strings. Each annotation becomes a deep-link back into Zotero's
  * PDF reader (`zotero://open-pdf/…`), optionally followed by a comment block
  * and tag list.
- *
- * Two rendering strategies are exposed:
- * - `renderAnnotationBody` — full body for a newly created object (with heading
- *   and horizontal-rule separators between annotations).
- * - `renderSingleAnnotation` — a compact block used when appending a new
- *   annotation to an existing object body.
  */
 
 import type { ZoteroAnnotation } from "../zotero/itemReader";
 
-/**
- * Ensures `s` (is empty or ) ends with exactly two newline characters so that content
- * appended after it starts on its own paragraph in markdown.
- */
-export function ensureDoubleNewlineEnding(s: string): string {
-  s.trimEnd();
-  return s.replace(/\n*$/, "\n\n");
-}
 
 /**
  * Builds a `zotero://open-pdf/…` deep-link URL for the given annotation.
@@ -104,57 +90,3 @@ export function appendAnnotations(
   return existingBody + ANNOTATION_SEPARATOR + newChunks;
 }
 
-/**
- * Renders all annotations for an item into a full markdown body, starting with
- * an `## Annotations` heading. Annotations are separated by `---` horizontal
- * rules. Returns an empty string when the list is empty.
- *
- * Used when creating a brand-new Anytype object.
- */
-export function renderAnnotationBody(annotations: ZoteroAnnotation[]): string {
-  if (annotations.length === 0) return "";
-
-  const lines: string[] = ["## Annotations", ""];
-
-  for (const ann of annotations) {
-    const link = buildAnnotationLink(ann);
-
-    let linkText: string;
-    if (ann.annotationType === "image") {
-      linkText = "Image annotation";
-    } else if (ann.annotationType === "ink") {
-      linkText = "Ink annotation";
-    } else if (ann.text) {
-      linkText = ann.text;
-    } else {
-      linkText = "Note";
-    }
-
-    lines.push(`[${linkText}](${link})`);
-
-    if (ann.comment) {
-      lines.push("");
-      lines.push(`💬 ${ann.comment}`);
-    }
-
-    if (ann.tags.length > 0) {
-      const tagStr = ann.tags.map((t) => `\`${t}\``).join(" ");
-      lines.push("");
-      lines.push(`🏷️ ${tagStr}`);
-    }
-
-    lines.push("");
-    lines.push("---");
-    lines.push("");
-  }
-
-  // Remove trailing separator
-  while (
-    lines.length > 0 &&
-    (lines[lines.length - 1] === "---" || lines[lines.length - 1] === "")
-  ) {
-    lines.pop();
-  }
-
-  return lines.join("\n");
-}

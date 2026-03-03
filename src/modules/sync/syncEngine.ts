@@ -83,7 +83,7 @@ export class SyncEngine {
 
     const annotations = this._itemReader.getAnnotations(item);
     const { spaceId, relations } = this._spaceConfig;
-    // TOOD: make making zotero urls helper functions
+    // TODO: extract zotero URL construction into helper functions
     const expectedZoteroLink = `zotero://select/library/items/${item.key}`;
 
     // Validate the tracked Anytype object (if any): it must exist, not be
@@ -130,9 +130,11 @@ export class SyncEngine {
 
     try {
       if (trackedObjectId !== null) {
-        // Incremental update: append only annotations not already in the body.
+        // Incremental update: append only annotations not yet in the body.
+        // Key-based detection is reliable for all annotation types (including
+        // image/ink which have no text) since each key appears in its link URL.
         const newAnnotations = annotations.filter(
-          (ann) => !existingBody.includes(ann.text.trim()),
+          (ann) => !existingBody.includes(ann.key),
         );
 
         if (newAnnotations.length === 0) {

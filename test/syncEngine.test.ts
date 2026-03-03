@@ -59,7 +59,11 @@ interface CallLog {
   deleteObject: Array<{ spaceId: string; objectId: string }>;
 }
 
-function makeClient(createObjectReturn = "new-obj-id", existingBody = ""): [AnytypeClient, CallLog] {
+function makeClient(
+  createObjectReturn = "new-obj-id",
+  existingBody = "",
+  trackedItemKey = "ITEM001",
+): [AnytypeClient, CallLog] {
   const calls: CallLog = { createObject: [], updateObject: [], deleteObject: [] };
   const client = {
     async createObject(spaceId: string, payload: unknown): Promise<string> {
@@ -72,12 +76,22 @@ function makeClient(createObjectReturn = "new-obj-id", existingBody = ""): [Anyt
     async deleteObject(spaceId: string, objectId: string): Promise<void> {
       calls.deleteObject.push({ spaceId, objectId });
     },
-    async getObject(_spaceId: string, _objectId: string): Promise<{ body?: string }> {
-      return { body: existingBody };
+    async getObject(_spaceId: string, _objectId: string) {
+      return {
+        markdown: existingBody,
+        archived: false,
+        properties: [
+          {
+            key: testConfig.relations.zoteroLink,
+            url: `zotero://select/library/items/${trackedItemKey}`,
+            format: "url",
+            name: "Zotero Link",
+          },
+        ],
+      };
     },
     listSpaces: async () => [],
     listTypes: async () => [],
-    createRelation: async () => "",
   } as unknown as AnytypeClient;
   return [client, calls];
 }
@@ -238,10 +252,9 @@ describe("SyncEngine", function () {
         createObject: async () => { throw new Error("API down"); },
         updateObject: async () => {},
         deleteObject: async () => {},
+        getObject: async () => ({ markdown: "", archived: false, properties: [] }),
         listSpaces: async () => [],
-        searchObjects: async () => [],
-        createType: async () => "",
-        createRelation: async () => "",
+        listTypes: async () => [],
       } as unknown as AnytypeClient;
 
       const { state } = makeState();
@@ -258,11 +271,15 @@ describe("SyncEngine", function () {
         createObject: async () => "id",
         updateObject: async () => { throw new Error("API down"); },
         deleteObject: async () => {},
-        getObject: async () => ({ body: "" }),
+        getObject: async () => ({
+          markdown: "",
+          archived: false,
+          properties: [
+            { key: testConfig.relations.zoteroLink, url: "zotero://select/library/items/ITEM001", format: "url", name: "Zotero Link" },
+          ],
+        }),
         listSpaces: async () => [],
-        searchObjects: async () => [],
-        createType: async () => "",
-        createRelation: async () => "",
+        listTypes: async () => [],
       } as unknown as AnytypeClient;
 
       const item = makeZoteroItem({ key: "ITEM001" });
@@ -326,10 +343,9 @@ describe("SyncEngine", function () {
         createObject: async () => "id",
         updateObject: async () => {},
         deleteObject: async () => { throw new Error("not found"); },
+        getObject: async () => ({ markdown: "", archived: false, properties: [] }),
         listSpaces: async () => [],
-        searchObjects: async () => [],
-        createType: async () => "",
-        createRelation: async () => "",
+        listTypes: async () => [],
       } as unknown as AnytypeClient;
 
       const { state } = makeState({ ITEM001: "obj-id" });

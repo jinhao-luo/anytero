@@ -31,8 +31,8 @@ export interface ZoteroAnnotation {
   /** Key of the parent PDF attachment item. */
   attachmentKey: string;
   annotationType: "highlight" | "note" | "image" | "ink" | "underline";
-  /** Highlighted / selected text. Empty string for image / ink annotations. */
-  text: string;
+  /** Highlighted / selected text. Null for image / ink annotations. */
+  text: string | null;
   comment: string | null;
   color: string | null;
   /** Human-readable page label (e.g. `"5"`, `"xii"`). */

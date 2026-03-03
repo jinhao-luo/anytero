@@ -1,16 +1,21 @@
 import { assert } from "chai";
-import { renderAnnotationBody, ensureDoubleNewlineEnding } from "../src/modules/anytype/bodyRenderer";
+import {
+  buildAnnotationLink,
+  renderSingleAnnotation,
+  joinAnnotations,
+  appendAnnotations,
+} from "../src/modules/anytype/bodyRenderer";
 import type { ZoteroAnnotation } from "../src/modules/zotero/itemReader";
 
 function makeAnnotation(overrides: Partial<ZoteroAnnotation> = {}): ZoteroAnnotation {
   return {
     id: 1,
-    key: "ANN001",
-    attachmentKey: "ATT001",
+    key: "ANN0001",
+    attachmentKey: "ATT0001",
     annotationType: "highlight",
-    text: "Sample text",
+    text: "some highlighted text",
     comment: null,
-    color: null,
+    color: "#ffff00",
     pageLabel: "5",
     position: null,
     tags: [],
@@ -20,135 +25,126 @@ function makeAnnotation(overrides: Partial<ZoteroAnnotation> = {}): ZoteroAnnota
 }
 
 describe("bodyRenderer", function () {
-  describe("renderAnnotationBody", function () {
-    it("returns empty string for empty annotations", function () {
-      assert.strictEqual(renderAnnotationBody([]), "");
+  describe("buildAnnotationLink", function () {
+    it("builds a zotero://open-pdf URL with page and annotation params", function () {
+      const ann = makeAnnotation({ attachmentKey: "ATT001", key: "ANN001", pageLabel: "3" });
+      const url = buildAnnotationLink(ann);
+      assert.match(url, /^zotero:\/\/open-pdf\/library\/items\/ATT001\?/);
+      assert.include(url, "page=3");
+      assert.include(url, "annotation=ANN001");
     });
 
-    it("starts with '## Annotations' heading", function () {
-      const result = renderAnnotationBody([makeAnnotation()]);
-      assert.match(result, /^## Annotations/);
+    it("omits page param when pageLabel is null", function () {
+      const ann = makeAnnotation({ pageLabel: null });
+      const url = buildAnnotationLink(ann);
+      assert.notInclude(url, "page=");
+      assert.include(url, "annotation=ANN0001");
     });
 
-    it("renders highlight annotation as markdown link with text", function () {
-      const ann = makeAnnotation({ annotationType: "highlight", text: "Hello world", pageLabel: "3", attachmentKey: "ATT123" });
-      const result = renderAnnotationBody([ann]);
-      assert.include(result, "[Hello world](zotero://open-pdf/library/items/ATT123?page=3&annotation=ANN001)");
-    });
-
-    it("renders underline annotation as markdown link with text", function () {
-      const ann = makeAnnotation({ annotationType: "underline", text: "Underlined", attachmentKey: "ATT123" });
-      const result = renderAnnotationBody([ann]);
-      assert.include(result, "[Underlined](zotero://open-pdf/library/items/ATT123?page=5&annotation=ANN001)");
-    });
-
-    it("renders note annotation with text as markdown link", function () {
-      const ann = makeAnnotation({ annotationType: "note", text: "A note", attachmentKey: "ATT123" });
-      const result = renderAnnotationBody([ann]);
-      assert.include(result, "[A note](zotero://open-pdf/library/items/ATT123?page=5&annotation=ANN001)");
-    });
-
-    it("renders note annotation without text using 'Note' as link text", function () {
-      const ann = makeAnnotation({ annotationType: "note", text: null, attachmentKey: "ATT123" });
-      const result = renderAnnotationBody([ann]);
-      assert.include(result, "[Note](zotero://open-pdf/library/items/ATT123?page=5&annotation=ANN001)");
-    });
-
-    it("renders image annotation as markdown link with 'Image annotation' text", function () {
-      const ann = makeAnnotation({ annotationType: "image", text: null, attachmentKey: "ATT123" });
-      const result = renderAnnotationBody([ann]);
-      assert.include(result, "[Image annotation](zotero://open-pdf/library/items/ATT123?page=5&annotation=ANN001)");
-    });
-
-    it("renders ink annotation as markdown link with 'Ink annotation' text", function () {
-      const ann = makeAnnotation({ annotationType: "ink", text: null, attachmentKey: "ATT123" });
-      const result = renderAnnotationBody([ann]);
-      assert.include(result, "[Ink annotation](zotero://open-pdf/library/items/ATT123?page=5&annotation=ANN001)");
-    });
-
-    it("link omits page param when pageLabel is null", function () {
-      const ann = makeAnnotation({ pageLabel: null, attachmentKey: "ATT123" });
-      const result = renderAnnotationBody([ann]);
-      assert.include(result, "zotero://open-pdf/library/items/ATT123?annotation=ANN001");
-      assert.notInclude(result, "page=");
-    });
-
-    it("includes comment when present", function () {
-      const ann = makeAnnotation({ comment: "My comment" });
-      const result = renderAnnotationBody([ann]);
-      assert.include(result, "💬 My comment");
-    });
-
-    it("omits comment section when comment is null", function () {
-      const ann = makeAnnotation({ comment: null });
-      const result = renderAnnotationBody([ann]);
-      assert.notInclude(result, "💬");
-    });
-
-    it("includes tags in backticks when tags are present", function () {
-      const ann = makeAnnotation({ tags: ["important", "todo"] });
-      const result = renderAnnotationBody([ann]);
-      assert.include(result, "🏷️");
-      assert.include(result, "`important`");
-      assert.include(result, "`todo`");
-    });
-
-    it("omits tags section when tags is empty", function () {
-      const ann = makeAnnotation({ tags: [] });
-      const result = renderAnnotationBody([ann]);
-      assert.notInclude(result, "🏷️");
-    });
-
-    it("does not end with trailing '---' separator", function () {
-      const result = renderAnnotationBody([makeAnnotation()]);
-      assert.notMatch(result, /---\s*$/);
-    });
-
-    it("does not end with trailing blank line", function () {
-      const result = renderAnnotationBody([makeAnnotation()]);
-      assert.notMatch(result, /\n\s*$/);
-    });
-
-    it("separates multiple annotations with '---'", function () {
-      const ann1 = makeAnnotation({ key: "A1", pageLabel: "1", text: "First" });
-      const ann2 = makeAnnotation({ key: "A2", pageLabel: "2", text: "Second" });
-      const result = renderAnnotationBody([ann1, ann2]);
-      assert.include(result, "First");
-      assert.include(result, "Second");
-      assert.include(result, "\n---\n");
-    });
-
-    it("trailing separator is removed even with multiple annotations", function () {
-      const ann1 = makeAnnotation({ key: "A1" });
-      const ann2 = makeAnnotation({ key: "A2" });
-      const result = renderAnnotationBody([ann1, ann2]);
-      assert.notMatch(result, /---\s*$/);
-    });
-
-    it("renders annotation with both comment and tags", function () {
-      const ann = makeAnnotation({ comment: "Note this", tags: ["key"] });
-      const result = renderAnnotationBody([ann]);
-      assert.include(result, "💬 Note this");
-      assert.include(result, "🏷️");
-      assert.include(result, "`key`");
+    it("uses the attachmentKey in the URL path", function () {
+      const ann = makeAnnotation({ attachmentKey: "XYZABC" });
+      const url = buildAnnotationLink(ann);
+      assert.include(url, "/library/items/XYZABC?");
     });
   });
 
-  describe("ensureDoubleNewlineEnding", function () {
-    it("appends \\n\\n to a string with no trailing newlines", function () {
-      assert.strictEqual(ensureDoubleNewlineEnding("hello"), "hello\n\n");
+  describe("renderSingleAnnotation", function () {
+    it("renders highlighted text as a markdown link", function () {
+      const ann = makeAnnotation({ text: "Hello world", pageLabel: "1" });
+      const result = renderSingleAnnotation(ann);
+      assert.match(result, /^\[Hello world\]\(zotero:\/\/open-pdf\//);
     });
 
-    it("normalizes a single trailing newline to double", function () {
-      assert.strictEqual(ensureDoubleNewlineEnding("hello\n"), "hello\n\n");
+    it("uses 'Image annotation' for image type", function () {
+      const ann = makeAnnotation({ annotationType: "image", text: null });
+      const result = renderSingleAnnotation(ann);
+      assert.match(result, /^\[Image annotation\]\(/);
     });
 
-    it("leaves a string already ending with \\n\\n unchanged", function () {
-      assert.strictEqual(ensureDoubleNewlineEnding("hello\n\n"), "hello\n\n");
+    it("uses 'Ink annotation' for ink type", function () {
+      const ann = makeAnnotation({ annotationType: "ink", text: null });
+      const result = renderSingleAnnotation(ann);
+      assert.match(result, /^\[Ink annotation\]\(/);
     });
 
-    it("collapses more than two trailing newlines down to two", function () {
-      assert.strictEqual(ensureDoubleNewlineEnding("hello\n\n\n\n"), "hello\n\n");
+    it("uses 'Note' when text is null and type is note", function () {
+      const ann = makeAnnotation({ annotationType: "note", text: null });
+      const result = renderSingleAnnotation(ann);
+      assert.match(result, /^\[Note\]\(/);
+    });
+
+    it("appends comment block when comment is present", function () {
+      const ann = makeAnnotation({ comment: "interesting point" });
+      const result = renderSingleAnnotation(ann);
+      assert.include(result, "\n\n💬 interesting point");
+    });
+
+    it("omits comment block when comment is null", function () {
+      const ann = makeAnnotation({ comment: null });
+      assert.notInclude(renderSingleAnnotation(ann), "💬");
+    });
+
+    it("appends tag line when tags are present", function () {
+      const ann = makeAnnotation({ tags: ["important", "todo"] });
+      const result = renderSingleAnnotation(ann);
+      assert.include(result, "🏷️ `important` `todo`");
+    });
+
+    it("omits tag line when tags list is empty", function () {
+      const ann = makeAnnotation({ tags: [] });
+      assert.notInclude(renderSingleAnnotation(ann), "🏷️");
+    });
+
+    it("renders comment and tags together in order", function () {
+      const ann = makeAnnotation({ comment: "my note", tags: ["key"] });
+      const result = renderSingleAnnotation(ann);
+      const commentIdx = result.indexOf("💬");
+      const tagIdx = result.indexOf("🏷️");
+      assert.isAbove(tagIdx, commentIdx);
+    });
+  });
+
+  describe("joinAnnotations", function () {
+    it("returns empty string for empty list", function () {
+      assert.strictEqual(joinAnnotations([]), "");
+    });
+
+    it("returns single annotation for one-element list", function () {
+      const ann = makeAnnotation();
+      assert.strictEqual(joinAnnotations([ann]), renderSingleAnnotation(ann));
+    });
+
+    it("joins multiple annotations with the separator", function () {
+      const a = makeAnnotation({ key: "A", text: "first" });
+      const b = makeAnnotation({ key: "B", text: "second" });
+      const result = joinAnnotations([a, b]);
+      assert.include(result, renderSingleAnnotation(a));
+      assert.include(result, renderSingleAnnotation(b));
+      // Separator is four newlines between blocks
+      const sep = "\n\n\n\n";
+      assert.include(result, sep);
+    });
+  });
+
+  describe("appendAnnotations", function () {
+    it("returns just new annotations when existingBody is empty", function () {
+      const ann = makeAnnotation();
+      const result = appendAnnotations("", [ann]);
+      assert.strictEqual(result, joinAnnotations([ann]));
+    });
+
+    it("appends with separator when existingBody is non-empty", function () {
+      const existing = "existing content";
+      const ann = makeAnnotation({ text: "new highlight" });
+      const result = appendAnnotations(existing, [ann]);
+      assert.isTrue(result.startsWith("existing content"));
+      assert.include(result, joinAnnotations([ann]));
+      // Separator is present between old and new content
+      assert.include(result, "\n\n\n\n");
+    });
+
+    it("returns empty string when both body and annotations are empty", function () {
+      assert.strictEqual(appendAnnotations("", []), "");
     });
   });
 });
