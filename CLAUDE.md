@@ -29,7 +29,16 @@ Run `direnv allow` after cloning to activate the environment. The `zotero` layou
 - `npm start` — hot-reload dev server (requires Zotero path in `.env`)
 - `npm run test:unit` — run unit tests (mocha + tsx, no Zotero needed)
 - `npm test` — integration tests via `zotero-plugin test`, requires Zotero running (fails otherwise)
+- `npm run lint:check` — check formatting + lint (prettier + eslint)
+- `npm run lint:fix` — auto-fix formatting + lint
+- `npm run release` — build + package XPI for release
 - Output goes to `.scaffold/build/`
+
+## Environment Setup
+
+`npm start` requires a `.env` file (copy `.env.example` → `.env`):
+- `ZOTERO_PLUGIN_ZOTERO_BIN_PATH` — path to Zotero binary (`*/Zotero.app/Contents/MacOS/zotero` on macOS)
+- `ZOTERO_PLUGIN_PROFILE_PATH` — path to dev profile (create with `zotero -p`)
 
 ## Module Layout
 
@@ -66,6 +75,7 @@ Anytype object type: `Book Note` (one per Zotero item). Object has a `Zotero Lin
 - `architecture.md` — full module breakdown, data flow diagrams, design decisions; read before making architectural changes
 - `scaffold.md` — build/release/template docs (original README from zotero-plugin-template)
 - `README.md` — project-facing README (installation, setup, features)
+- `tasks.md` — known bugs and open tasks; check before working on features
 
 ## Code Documentation Style
 

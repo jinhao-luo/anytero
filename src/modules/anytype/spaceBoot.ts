@@ -51,6 +51,7 @@ export class SpaceBoot {
    * Looks up the `Zotero Link` property in the space. Returns its key if
    * found, otherwise creates the property and returns the new key.
    */
+  // TODO: let's allow user to configure the property in pref pane. With a recommendation for creating a Zotero Link
   private async _ensureProperty(spaceId: string): Promise<string> {
     const existing = await this._client.listProperties(spaceId, {
       nameContains: ZOTERO_LINK_RELATION.name,
