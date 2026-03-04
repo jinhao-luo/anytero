@@ -92,14 +92,14 @@ export function renderSingleAnnotation(ann: ZoteroAnnotation): string {
 
   const parts: string[] = [firstLine];
 
-  if (ann.comment) {
-    parts.push("", `💬 ${ann.comment}`);
-  }
+  // if (ann.comment) {
+  //   parts.push("", `💬 ${ann.comment}`);
+  // }
 
-  if (ann.tags.length > 0) {
-    const tagStr = ann.tags.map((t) => `\`${t}\``).join(" ");
-    parts.push("", `🏷️ ${tagStr}`);
-  }
+  // if (ann.tags.length > 0) {
+  //   const tagStr = ann.tags.map((t) => `\`${t}\``).join(" ");
+  //   parts.push("", `🏷️ ${tagStr}`);
+  // }
 
   return parts.join("\n") + "\n";
 }

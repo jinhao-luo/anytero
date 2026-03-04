@@ -6,16 +6,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 AnyTero is a Zotero plugin that syncs Zotero annotations to an Anytype space.
 
-## Development Environment
-
-The project uses [direnv](https://direnv.net/) with an Anaconda layout:
-
-```
-layout anaconda zotero
-```
-
-Run `direnv allow` after cloning to activate the environment. The `zotero` layout name suggests a custom direnv layout for local Zotero plugin development.
-
 ## Tech Stack
 
 - TypeScript + esbuild via `zotero-plugin-scaffold` (wraps build + packaging)
@@ -47,6 +37,7 @@ Run `direnv allow` after cloning to activate the environment. The `zotero` layou
 src/modules/zotero/     — Zotero API wrappers (itemReader, notifierListener)
 src/modules/anytype/    — Anytype REST client, body renderer, mapper, spaceBoot
 src/modules/sync/       — syncEngine (orchestration), syncState (ID mapping persistence)
+src/utils/              — locale, prefs, window helpers, ztoolkit singleton
 ```
 
 ## Zotero API Gotchas
@@ -64,20 +55,19 @@ src/modules/sync/       — syncEngine (orchestration), syncState (ID mapping pe
 
 ## Anytype API
 
-- Local REST API at `http://127.0.0.1:31009/v1` (desktop app must be running)
+- Local REST API at `http://127.0.0.1:<port>/v1` (desktop app must be running); port defaults to `31009`, configurable via `extensions.zotero.anytero.port`
 - Required headers: `Authorization: Bearer <key>`, `Anytype-Version: 2025-11-08`
 - Auth: API key from Anytype Settings → API Keys, stored in `extensions.zotero.anytero.apiKey`
 
 ## Data Model
 
-Anytype object type: `Book Note` (one per Zotero item). Object has a `Zotero Link` property (`zotero://select/...`). Body lists annotations as markdown links: `[text](zotero://open-pdf/library/items/ATTKEY?annotation=KEY) - [Page N](zotero://open-pdf/library/items/ATTKEY?page=PAGE)`. Sync state (Zotero key → Anytype object ID) is persisted as JSON in `Zotero.Prefs`.
+One Anytype object per Zotero item. Object type is user-selected (stored as `objectTypeKey` pref; e.g. "Book Note"). Object has a `Zotero Link` property (`zotero://select/...`). Body lists annotations as markdown links: `[text](zotero://open-pdf/library/items/ATTKEY?annotation=KEY) - [Page N](zotero://open-pdf/library/items/ATTKEY?page=PAGE)`. Sync state (Zotero key → Anytype object ID) is persisted as JSON in `Zotero.Prefs`.
 
 ## Reference Docs
 
 - `architecture.md` — full module breakdown, data flow diagrams, design decisions; read before making architectural changes
 - `scaffold.md` — build/release/template docs (original README from zotero-plugin-template)
 - `README.md` — project-facing README (installation, setup, features)
-- `tasks.md` — known bugs and open tasks; check before working on features
 
 ## Code Documentation Style
 

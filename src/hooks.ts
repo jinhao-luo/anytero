@@ -162,7 +162,7 @@ async function _initSyncIfConfigured(): Promise<void> {
     (Zotero.Prefs.get(`${config.prefsPrefix}.port`, true) as number) || 31009;
   const syncMode =
     (Zotero.Prefs.get(`${config.prefsPrefix}.syncMode`, true) as string) ||
-    "both";
+    "realtime";
 
   const client = new AnytypeClient(port, apiKey);
   const itemReader = new ItemReader();
@@ -179,7 +179,7 @@ async function _initSyncIfConfigured(): Promise<void> {
   addon.data.client = client;
   addon.data.syncEngine = engine;
 
-  if (syncMode === "realtime" || syncMode === "both") {
+  if (syncMode === "realtime") {
     const listener = new NotifierListener(
       (itemId) => engine.syncItem(itemId),
       (itemKey) => engine.deleteItem(itemKey),
