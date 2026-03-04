@@ -33,10 +33,7 @@ export class NotifierListener {
   private _onSyncItem: SyncItemCallback;
   private _onDeleteItem: DeleteItemCallback;
 
-  constructor(
-    onSyncItem: SyncItemCallback,
-    onDeleteItem: DeleteItemCallback,
-  ) {
+  constructor(onSyncItem: SyncItemCallback, onDeleteItem: DeleteItemCallback) {
     this._onSyncItem = onSyncItem;
     this._onDeleteItem = onDeleteItem;
   }

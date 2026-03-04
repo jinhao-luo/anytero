@@ -60,6 +60,9 @@ export function toUpdatePayload(
 
 function buildProperties(item: ZoteroItem, config: SpaceConfig) {
   return [
-    { key: config.relations.zoteroLink, url: `zotero://select/library/items/${item.key}` },
+    {
+      key: config.relations.zoteroLink,
+      url: `zotero://select/library/items/${item.key}`,
+    },
   ];
 }

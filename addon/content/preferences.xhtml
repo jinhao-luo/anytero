@@ -12,13 +12,13 @@
     <html:label
       for="anytero-pref-api-key"
       data-l10n-id="pref-api-key-label"
-      style="min-width: 6em;"
+      style="min-width: 6em"
     ></html:label>
     <html:input
       type="password"
       id="anytero-pref-api-key"
       preference="apiKey"
-      style="flex: 1;"
+      style="flex: 1"
     ></html:input>
   </hbox>
 
@@ -26,13 +26,13 @@
     <html:label
       for="anytero-pref-port"
       data-l10n-id="pref-port-label"
-      style="min-width: 6em;"
+      style="min-width: 6em"
     ></html:label>
     <html:input
       type="number"
       id="anytero-pref-port"
       preference="port"
-      style="width: 6em;"
+      style="width: 6em"
     ></html:input>
   </hbox>
 
@@ -43,13 +43,15 @@
     <html:label
       for="anytero-pref-space"
       data-l10n-id="pref-space-label"
-      style="min-width: 6em;"
+      style="min-width: 6em"
     ></html:label>
     <menulist
       id="anytero-pref-space"
       preference="spaceId"
-      style="flex: 1;"
-      oncommand="Zotero.__addonInstance__.hooks.onPrefsEvent('spaceChange', { window })"
+      style="flex: 1"
+      oncommand="
+        Zotero.__addonInstance__.hooks.onPrefsEvent('spaceChange', { window })
+      "
     >
       <menupopup id="anytero-pref-space-popup" />
     </menulist>
@@ -59,9 +61,13 @@
     <html:label
       for="anytero-pref-object-type"
       data-l10n-id="pref-object-type-label"
-      style="min-width: 6em;"
+      style="min-width: 6em"
     ></html:label>
-    <menulist id="anytero-pref-object-type" preference="objectTypeKey" style="flex: 1;">
+    <menulist
+      id="anytero-pref-object-type"
+      preference="objectTypeKey"
+      style="flex: 1"
+    >
       <menupopup id="anytero-pref-object-type-popup" />
     </menulist>
   </hbox>
@@ -73,9 +79,9 @@
     <html:label
       for="anytero-pref-sync-mode"
       data-l10n-id="pref-sync-mode-label"
-      style="min-width: 6em;"
+      style="min-width: 6em"
     ></html:label>
-    <menulist id="anytero-pref-sync-mode" preference="syncMode" style="flex: 1;">
+    <menulist id="anytero-pref-sync-mode" preference="syncMode" style="flex: 1">
       <menupopup>
         <menuitem value="realtime" data-l10n-id="pref-sync-mode-realtime" />
         <menuitem value="manual" data-l10n-id="pref-sync-mode-manual" />
@@ -87,13 +93,17 @@
     <button
       id="anytero-pref-sync-now"
       data-l10n-id="pref-sync-now-button"
-      oncommand="Zotero.__addonInstance__.hooks.onPrefsEvent('syncNow', { window })"
+      oncommand="
+        Zotero.__addonInstance__.hooks.onPrefsEvent('syncNow', { window })
+      "
     />
     <button
       id="anytero-pref-setup"
-      style="margin-left: 8px;"
+      style="margin-left: 8px"
       data-l10n-id="pref-setup-button"
-      oncommand="Zotero.__addonInstance__.hooks.onPrefsEvent('setup', { window })"
+      oncommand="
+        Zotero.__addonInstance__.hooks.onPrefsEvent('setup', { window })
+      "
     />
   </hbox>
 </groupbox>

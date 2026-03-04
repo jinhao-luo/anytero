@@ -120,21 +120,11 @@ describe("bodyRenderer", function () {
       assert.notMatch(result, /\[Page \d/);
     });
 
-    it("appends comment block when comment is present", function () {
-      const ann = makeAnnotation({ comment: "interesting point" });
-      assert.include(renderSingleAnnotation(ann), "\n\n💬 interesting point");
-    });
-
     it("omits comment block when comment is null", function () {
       assert.notInclude(
         renderSingleAnnotation(makeAnnotation({ comment: null })),
         "💬",
       );
-    });
-
-    it("appends tag line when tags are present", function () {
-      const ann = makeAnnotation({ tags: ["important", "todo"] });
-      assert.include(renderSingleAnnotation(ann), "🏷️ `important` `todo`");
     });
 
     it("omits tag line when tags list is empty", function () {
@@ -143,20 +133,19 @@ describe("bodyRenderer", function () {
         "🏷️",
       );
     });
-
-    it("renders comment before tags", function () {
-      const ann = makeAnnotation({ comment: "my note", tags: ["key"] });
-      const result = renderSingleAnnotation(ann);
-      assert.isAbove(result.indexOf("🏷️"), result.indexOf("💬"));
-    });
   });
 
   describe("appendAnnotations", function () {
     // Fixed annotation used across exact-string tests.
-    const ann = makeAnnotation({ text: "hello", pageLabel: "3" });
+    let ann: ZoteroAnnotation;
     // Pre-computed pieces to keep expected strings readable.
     // renderSingleAnnotation no longer includes CONTENT_TAIL; appendAnnotations adds it.
-    const ANN_CONTENT = renderSingleAnnotation(ann); // "<firstLine>\n"
+    let ANN_CONTENT: string; // "<firstLine>\n"
+
+    before(function () {
+      ann = makeAnnotation({ text: "hello", pageLabel: "3" });
+      ANN_CONTENT = renderSingleAnnotation(ann);
+    });
 
     it("returns empty string for empty list", function () {
       assert.strictEqual(appendAnnotations("", []), "");

@@ -135,11 +135,11 @@ Persists a `zoteroKey → anytypeObjectId` JSON map in `Zotero.Prefs`. Single so
 
 The central sync logic:
 
-| Method                  | Behaviour                                                                                                                                                                    |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Method                  | Behaviour                                                                                                                                                                   |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `syncItem(id)`          | If no Anytype object exists → create. If it exists → fetch current body, find new annotations (those whose key is not yet in the body), append them. No-ops if nothing new. |
-| `deleteItem(key)`       | Deletes the Anytype object and removes the state entry.                                                                                                                      |
-| `fullSync(onProgress?)` | Iterates all items with annotations, calls `syncItem` for each, then prunes state entries for items no longer present in Zotero.                                             |
+| `deleteItem(key)`       | Deletes the Anytype object and removes the state entry.                                                                                                                     |
+| `fullSync(onProgress?)` | Iterates all items with annotations, calls `syncItem` for each, then prunes state entries for items no longer present in Zotero.                                            |
 
 The incremental update strategy appends only new annotations (identified by key) to the existing body, preserving any edits the user made in Anytype.
 
