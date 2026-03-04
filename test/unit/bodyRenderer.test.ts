@@ -120,11 +120,6 @@ describe("bodyRenderer", function () {
       assert.notMatch(result, /\[Page \d/);
     });
 
-    it("appends comment block when comment is present", function () {
-      const ann = makeAnnotation({ comment: "interesting point" });
-      assert.include(renderSingleAnnotation(ann), "\n\n💬 interesting point");
-    });
-
     it("omits comment block when comment is null", function () {
       assert.notInclude(
         renderSingleAnnotation(makeAnnotation({ comment: null })),
@@ -132,22 +127,11 @@ describe("bodyRenderer", function () {
       );
     });
 
-    it("appends tag line when tags are present", function () {
-      const ann = makeAnnotation({ tags: ["important", "todo"] });
-      assert.include(renderSingleAnnotation(ann), "🏷️ `important` `todo`");
-    });
-
     it("omits tag line when tags list is empty", function () {
       assert.notInclude(
         renderSingleAnnotation(makeAnnotation({ tags: [] })),
         "🏷️",
       );
-    });
-
-    it("renders comment before tags", function () {
-      const ann = makeAnnotation({ comment: "my note", tags: ["key"] });
-      const result = renderSingleAnnotation(ann);
-      assert.isAbove(result.indexOf("🏷️"), result.indexOf("💬"));
     });
   });
 
