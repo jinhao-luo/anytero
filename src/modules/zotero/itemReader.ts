@@ -44,6 +44,7 @@ export interface ZoteroAnnotation {
 }
 
 /** A Zotero library item (journal article, book, etc.) normalised for AnyTero's use. */
+// TODO: can we use the Item class from Zotero instead of creating a new class
 export interface ZoteroItem {
   id: number;
   /** Zotero item key (e.g. `"ABCD1234"`). Used as the sync state key. */
@@ -66,28 +67,31 @@ export interface ZoteroItem {
 export class ItemReader {
   /**
    * Fetches a single library item by numeric ID.
-   * Returns `null` for attachments, annotations, or unknown IDs.
+   * Returns `null` for unknown IDs.
    */
   getItem(itemId: number): ZoteroItem | null {
     const item = Zotero.Items.get(itemId);
-    if (!item || item.isAnnotation() || item.isAttachment()) return null;
+    if (!item) return null;
     return this._toZoteroItem(item);
   }
 
   /**
-   * Returns all PDF annotations for the given item, sorted by page number
+   * Returns all annotations for the given item ID, sorted by page number
    * (ascending). Skips non-PDF attachments.
    */
-  getAnnotations(item: ZoteroItem): ZoteroAnnotation[] {
-    const zItem = Zotero.Items.get(item.id);
+  // TODO maybe sort by reverse creation date
+  getAnnotations(itemId: number): ZoteroAnnotation[] {
+    const zItem = Zotero.Items.get(itemId);
     if (!zItem) return [];
 
-    const attachmentIds = zItem.getAttachments() as number[];
+    const attachmentIds = zItem.isAttachment()
+      ? [zItem.id]
+      : zItem.getAttachments();
     const annotations: ZoteroAnnotation[] = [];
 
     for (const attId of attachmentIds) {
       const att = Zotero.Items.get(attId);
-      if (!att || !att.isPDFAttachment()) continue;
+      if (!att || !att.isFileAttachment()) continue;
       for (const ann of att.getAnnotations() as Zotero.Item[]) {
         annotations.push(this._toZoteroAnnotation(ann, att.key));
       }
@@ -107,28 +111,26 @@ export class ItemReader {
    */
   async getAllItemsWithAnnotations(): Promise<ZoteroItem[]> {
     const results: ZoteroItem[] = [];
-    const allItems = (await Zotero.Items.getAll(
+    const allItems = await Zotero.Items.getAll(
       Zotero.Libraries.userLibraryID,
+      true,
       false,
       false,
-      false,
-    )) as unknown as Zotero.Item[];
+    );
 
     for (const item of allItems) {
-      if (
-        (item as any).isAnnotation?.() ||
-        item.isAttachment() ||
-        item.isNote()
-      ) {
-        continue;
-      }
-      const zoteroItem = this._toZoteroItem(item);
-      const annotations = this.getAnnotations(zoteroItem);
-      if (annotations.length > 0) {
-        results.push(zoteroItem);
+      const attachments = item.isFileAttachment()
+        ? [item.id]
+        : item.getAttachments();
+      for (const attId of attachments) {
+        const att = Zotero.Items.get(attId);
+        if (att.isFileAttachment() && att.numAnnotations() > 0) {
+          results.push(this._toZoteroItem(item));
+
+          break;
+        }
       }
     }
-
     return results;
   }
 

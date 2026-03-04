@@ -82,7 +82,7 @@ export class SyncEngine {
         return;
       }
 
-      const annotations = this._itemReader.getAnnotations(item);
+      const annotations = this._itemReader.getAnnotations(item.id);
       const { spaceId, relations } = this._spaceConfig;
       // TODO: extract zotero URL construction into helper functions
       const expectedZoteroLink = `zotero://select/library/items/${item.key}`;
@@ -214,6 +214,7 @@ export class SyncEngine {
     const total = items.length;
     let current = 0;
 
+    ztoolkit.log("AnyTero: syncing " + total + " items.");
     for (const item of items) {
       await this.syncItem(item.id);
       current++;
@@ -223,6 +224,7 @@ export class SyncEngine {
     // Prune state entries for items no longer in Zotero
     const allState = this._state.getAll();
     const activeKeys = new Set(items.map((i) => i.key));
+    // TODO: make this a function of SyncEngine
     for (const key of Object.keys(allState)) {
       if (!activeKeys.has(key)) {
         ztoolkit.log("SyncEngine: pruning stale state entry for", key);

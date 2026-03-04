@@ -141,7 +141,7 @@ function makeItemReader(
   const byId = new Map(items.map((i) => [i.id, i]));
   return {
     getItem: (id: number) => byId.get(id) ?? null,
-    getAnnotations: (_item: ZoteroItem) => annotations,
+    getAnnotations: (_itemId: number) => annotations,
     getAllItemsWithAnnotations: async () => items,
   } as unknown as ItemReader;
 }
@@ -379,7 +379,7 @@ describe("SyncEngine", function () {
       const item = makeZoteroItem();
       const throwingReader = {
         getItem: (_id: number) => item,
-        getAnnotations: (_item: ZoteroItem) => {
+        getAnnotations: (_itemId: number) => {
           throw new Error("Zotero DB error");
         },
         getAllItemsWithAnnotations: async () => [],
@@ -403,7 +403,8 @@ describe("SyncEngine", function () {
       const partialReader = {
         getItem: (id: number) =>
           [item1, item2, item3].find((i) => i.id === id) ?? null,
-        getAnnotations: (item: ZoteroItem) => {
+        getAnnotations: (itemId: number) => {
+          const item = [item1, item2, item3].find((i) => i.id === itemId)!;
           if (item.key === "K2") throw new Error("Zotero DB error for K2");
           return [makeAnnotation({ key: `ANN-${item.key}` })];
         },
