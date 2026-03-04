@@ -1,5 +1,8 @@
 import { assert } from "chai";
-import { toCreatePayload, toUpdatePayload } from "../../src/modules/anytype/mapper";
+import {
+  toCreatePayload,
+  toUpdatePayload,
+} from "../../src/modules/anytype/mapper";
 import type { SpaceConfig } from "../../src/modules/anytype/mapper";
 import type { ZoteroItem } from "../../src/modules/zotero/itemReader";
 
@@ -35,18 +38,32 @@ describe("mapper", function () {
     });
 
     it("sets name from item title", function () {
-      const payload = toCreatePayload(makeItem({ title: "My Paper" }), "", testConfig);
+      const payload = toCreatePayload(
+        makeItem({ title: "My Paper" }),
+        "",
+        testConfig,
+      );
       assert.strictEqual(payload.name, "My Paper");
     });
 
     it("sets body", function () {
-      const payload = toCreatePayload(makeItem(), "## Annotations\ntext", testConfig);
+      const payload = toCreatePayload(
+        makeItem(),
+        "## Annotations\ntext",
+        testConfig,
+      );
       assert.strictEqual(payload.body, "## Annotations\ntext");
     });
 
     it("includes zoteroLink property with zotero://select URL", function () {
-      const payload = toCreatePayload(makeItem({ key: "ITEM001" }), "", testConfig);
-      const prop = payload.properties!.find((p) => p.key === "rel_zoteroLink") as any;
+      const payload = toCreatePayload(
+        makeItem({ key: "ITEM001" }),
+        "",
+        testConfig,
+      );
+      const prop = payload.properties!.find(
+        (p) => p.key === "rel_zoteroLink",
+      ) as any;
       assert.isDefined(prop);
       assert.strictEqual(prop.url, "zotero://select/library/items/ITEM001");
     });
@@ -69,7 +86,11 @@ describe("mapper", function () {
     });
 
     it("sets name from item title", function () {
-      const payload = toUpdatePayload(makeItem({ title: "Updated Title" }), "", testConfig);
+      const payload = toUpdatePayload(
+        makeItem({ title: "Updated Title" }),
+        "",
+        testConfig,
+      );
       assert.strictEqual(payload.name, "Updated Title");
     });
 
@@ -79,8 +100,14 @@ describe("mapper", function () {
     });
 
     it("includes zoteroLink property with zotero://select URL", function () {
-      const payload = toUpdatePayload(makeItem({ key: "ITEM001" }), "", testConfig);
-      const prop = payload.properties!.find((p) => p.key === "rel_zoteroLink") as any;
+      const payload = toUpdatePayload(
+        makeItem({ key: "ITEM001" }),
+        "",
+        testConfig,
+      );
+      const prop = payload.properties!.find(
+        (p) => p.key === "rel_zoteroLink",
+      ) as any;
       assert.isDefined(prop);
       assert.strictEqual(prop.url, "zotero://select/library/items/ITEM001");
     });

@@ -153,10 +153,15 @@ describe("bodyRenderer", function () {
 
   describe("appendAnnotations", function () {
     // Fixed annotation used across exact-string tests.
-    const ann = makeAnnotation({ text: "hello", pageLabel: "3" });
+    let ann: ZoteroAnnotation;
     // Pre-computed pieces to keep expected strings readable.
     // renderSingleAnnotation no longer includes CONTENT_TAIL; appendAnnotations adds it.
-    const ANN_CONTENT = renderSingleAnnotation(ann); // "<firstLine>\n"
+    let ANN_CONTENT: string; // "<firstLine>\n"
+
+    before(function () {
+      ann = makeAnnotation({ text: "hello", pageLabel: "3" });
+      ANN_CONTENT = renderSingleAnnotation(ann);
+    });
 
     it("returns empty string for empty list", function () {
       assert.strictEqual(appendAnnotations("", []), "");
