@@ -19,7 +19,7 @@
 
 import { ItemReader } from "../zotero/itemReader";
 import { AnytypeClient } from "../anytype/client";
-import { joinAnnotations, appendAnnotations } from "../anytype/bodyRenderer";
+import { appendAnnotations } from "../anytype/bodyRenderer";
 import { toCreatePayload, toUpdatePayload } from "../anytype/mapper";
 import type { SpaceConfig } from "../anytype/mapper";
 import { SyncState } from "./syncState";
@@ -118,7 +118,7 @@ export class SyncEngine {
             this._state.remove(item.key);
             trackedObjectId = null;
           } else {
-            existingBody = existing.markdown.trimEnd();
+            existingBody = existing.markdown;
           }
         } catch (e) {
           ztoolkit.log(
@@ -156,7 +156,7 @@ export class SyncEngine {
           item.key,
         );
       } else {
-        const body = joinAnnotations(annotations);
+        const body = appendAnnotations("", annotations);
         const payload = toCreatePayload(item, body, this._spaceConfig);
         const objectId = await this._client.createObject(spaceId, payload);
         this._state.set(item.key, objectId);

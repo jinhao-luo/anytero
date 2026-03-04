@@ -44,25 +44,25 @@ src/
 
 `Addon` is a plain data bag that owns mutable plugin-lifetime state:
 
-| Field | Type | Purpose |
-|---|---|---|
-| `alive` | `boolean` | Set to `false` on shutdown to prevent in-flight callbacks |
-| `client` | `AnytypeClient?` | HTTP client (created once, reused across operations) |
-| `syncEngine` | `SyncEngine?` | Core sync orchestrator |
-| `notifierListener` | `NotifierListener?` | Zotero change observer (realtime mode only) |
-| `prefsWindow` | `Window?` | Reference to the open preferences window |
+| Field              | Type                | Purpose                                                   |
+| ------------------ | ------------------- | --------------------------------------------------------- |
+| `alive`            | `boolean`           | Set to `false` on shutdown to prevent in-flight callbacks |
+| `client`           | `AnytypeClient?`    | HTTP client (created once, reused across operations)      |
+| `syncEngine`       | `SyncEngine?`       | Core sync orchestrator                                    |
+| `notifierListener` | `NotifierListener?` | Zotero change observer (realtime mode only)               |
+| `prefsWindow`      | `Window?`           | Reference to the open preferences window                  |
 
 ### Lifecycle Hooks — `hooks.ts`
 
 Zotero calls lifecycle hooks; `hooks.ts` wires them to AnyTero behaviour:
 
-| Hook | When called | What it does |
-|---|---|---|
-| `onStartup` | Plugin enabled | Waits for Zotero ready, calls `onMainWindowLoad` for each open window |
-| `onMainWindowLoad` | Each main window opens | Registers the preference pane, calls `_initSyncIfConfigured` |
-| `onMainWindowUnload` | Window closes | Unregisters the notifier listener and toolkit elements |
-| `onShutdown` | Plugin disabled/uninstalled | Same as unload + sets `alive = false`, deletes `Zotero.AnyTero` |
-| `onPrefsEvent` | User interacts with the prefs pane | Routes `load`, `spaceChange`, `syncNow`, `setup` events |
+| Hook                 | When called                        | What it does                                                          |
+| -------------------- | ---------------------------------- | --------------------------------------------------------------------- |
+| `onStartup`          | Plugin enabled                     | Waits for Zotero ready, calls `onMainWindowLoad` for each open window |
+| `onMainWindowLoad`   | Each main window opens             | Registers the preference pane, calls `_initSyncIfConfigured`          |
+| `onMainWindowUnload` | Window closes                      | Unregisters the notifier listener and toolkit elements                |
+| `onShutdown`         | Plugin disabled/uninstalled        | Same as unload + sets `alive = false`, deletes `Zotero.AnyTero`       |
+| `onPrefsEvent`       | User interacts with the prefs pane | Routes `load`, `spaceChange`, `syncNow`, `setup` events               |
 
 `_initSyncIfConfigured` reads the stored prefs and conditionally boots the full sync stack. It is called both on startup and after the setup wizard completes.
 
@@ -105,9 +105,8 @@ Both include the item title as `name` and the `zoteroLink` property set to `zote
 Renders a list of `ZoteroAnnotation` objects into a markdown string suitable for Anytype's body field:
 
 ```markdown
-## Annotations
-
-[Highlighted text](zotero://open-pdf/library/items/ATTKEY?page=5&annotation=ANNKEY)
+---
+[Highlighted text](zotero://open-pdf/library/items/ATTKEY?annotation=ANNKEY) - [Page 5](zotero://open-pdf/library/items/ATTKEY?page=5)
 
 💬 My comment
 
@@ -116,7 +115,7 @@ Renders a list of `ZoteroAnnotation` objects into a markdown string suitable for
 ---
 ```
 
-Each annotation becomes a deep-link back to the exact page and annotation in Zotero's PDF reader.
+Each annotation becomes two deep-links: the annotation link jumps directly to the annotation in Zotero's PDF reader; the page link opens the PDF at that page number.
 
 ---
 
@@ -131,6 +130,7 @@ Provides a stable, typed facade over the Zotero JavaScript API:
 - `getAllItemsWithAnnotations()` — enumerates the entire user library and returns items that have at least one annotation
 
 The module also defines the two core domain types used throughout the codebase:
+
 - `ZoteroItem` — normalised item fields (title, creators, year, DOI, etc.)
 - `ZoteroAnnotation` — normalised annotation fields (type, text, comment, page, tags, etc.)
 
@@ -150,11 +150,11 @@ Maintains a JSON map of `zoteroKey → anytypeObjectId` persisted in `Zotero.Pre
 
 The central sync logic:
 
-| Method | Behaviour |
-|---|---|
-| `syncItem(id)` | If no Anytype object exists → create. If it exists → fetch current body, find new annotations (those whose text is not yet in the body), append them. No-ops if nothing new. |
-| `deleteItem(key)` | Deletes the Anytype object and removes the state entry. |
-| `fullSync(onProgress?)` | Iterates all items with annotations, calls `syncItem` for each, then prunes state entries for items no longer present in Zotero. |
+| Method                  | Behaviour                                                                                                                                                                    |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `syncItem(id)`          | If no Anytype object exists → create. If it exists → fetch current body, find new annotations (those whose text is not yet in the body), append them. No-ops if nothing new. |
+| `deleteItem(key)`       | Deletes the Anytype object and removes the state entry.                                                                                                                      |
+| `fullSync(onProgress?)` | Iterates all items with annotations, calls `syncItem` for each, then prunes state entries for items no longer present in Zotero.                                             |
 
 The incremental update strategy for `syncItem` appends only new annotation text blocks to the existing body rather than overwriting it. This preserves any edits the user may have made in Anytype.
 
@@ -217,15 +217,15 @@ onPrefsEvent("setup")
 
 All preferences are stored under the `extensions.zotero.anytero` prefix:
 
-| Key | Type | Description |
-|---|---|---|
-| `apiKey` | `string` | Anytype API key (from Anytype Settings → API Keys) |
-| `port` | `number` | Anytype local API port (default: 31009) |
-| `spaceId` | `string` | ID of the chosen Anytype space |
-| `objectTypeKey` | `string` | Key of the Anytype object type to use (e.g. a "Book Note" type) |
-| `spaceConfig` | `string` (JSON) | Serialised `SpaceConfig` (set by the setup wizard) |
-| `syncMode` | `string` | `"realtime"` \| `"manual"` \| `"both"` |
-| `syncState` | `string` (JSON) | Serialised `{ [zoteroKey]: anytypeObjectId }` map |
+| Key             | Type            | Description                                                     |
+| --------------- | --------------- | --------------------------------------------------------------- |
+| `apiKey`        | `string`        | Anytype API key (from Anytype Settings → API Keys)              |
+| `port`          | `number`        | Anytype local API port (default: 31009)                         |
+| `spaceId`       | `string`        | ID of the chosen Anytype space                                  |
+| `objectTypeKey` | `string`        | Key of the Anytype object type to use (e.g. a "Book Note" type) |
+| `spaceConfig`   | `string` (JSON) | Serialised `SpaceConfig` (set by the setup wizard)              |
+| `syncMode`      | `string`        | `"realtime"` \| `"manual"` \| `"both"`                          |
+| `syncState`     | `string` (JSON) | Serialised `{ [zoteroKey]: anytypeObjectId }` map               |
 
 ---
 

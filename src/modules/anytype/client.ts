@@ -87,6 +87,23 @@ export interface UpdateObjectPayload {
 }
 
 /**
+ * Normalises horizontal-rule separators in a markdown string.
+ *
+ * The Anytype API has a bug where it round-trips `---` separators with extra
+ * surrounding whitespace, producing patterns like `" \n ---\n  "` instead of
+ * the canonical `"\n\n---\n"`. Left uncorrected these accumulate on every sync
+ * and cause rendering artefacts.
+ *
+ * This is a temporary workaround — remove once the upstream bug is fixed.
+ *
+ * @param markdown - Raw markdown string, possibly containing padded `---` lines.
+ * @returns The same string with every `---` separator normalised to `\n\n---\n`.
+ */
+export function patchMarkdown(markdown: string): string {
+  return markdown.replace(/( *\n *)+---( *\n *)+/g, "\n\n---\n");
+}
+
+/**
  * HTTP client for the Anytype local REST API.
  *
  * Wraps `fetch` with:
@@ -160,6 +177,10 @@ export class AnytypeClient {
     objectId: string,
     payload: UpdateObjectPayload,
   ): Promise<void> {
+    // Temporary workaround for an Anytype API bug — see `patchMarkdown`.
+    if (payload.markdown !== undefined) {
+      payload = { ...payload, markdown: patchMarkdown(payload.markdown) };
+    }
     ztoolkit.log("UpdateObject: payload", payload);
     await this._fetch(`/spaces/${spaceId}/objects/${objectId}`, {
       method: "PATCH",

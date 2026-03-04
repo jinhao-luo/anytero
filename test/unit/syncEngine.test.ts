@@ -1,12 +1,12 @@
 import { assert } from "chai";
-import { SyncEngine } from "../src/modules/sync/syncEngine";
+import { SyncEngine } from "../../src/modules/sync/syncEngine";
 import type {
   ItemReader,
   ZoteroItem,
   ZoteroAnnotation,
-} from "../src/modules/zotero/itemReader";
-import type { AnytypeClient } from "../src/modules/anytype/client";
-import type { SpaceConfig } from "../src/modules/anytype/mapper";
+} from "../../src/modules/zotero/itemReader";
+import type { AnytypeClient } from "../../src/modules/anytype/client";
+import type { SpaceConfig } from "../../src/modules/anytype/mapper";
 
 // ---------------------------------------------------------------------------
 // Test fixtures

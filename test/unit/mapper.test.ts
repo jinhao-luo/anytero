@@ -1,7 +1,7 @@
 import { assert } from "chai";
-import { toCreatePayload, toUpdatePayload } from "../src/modules/anytype/mapper";
-import type { SpaceConfig } from "../src/modules/anytype/mapper";
-import type { ZoteroItem } from "../src/modules/zotero/itemReader";
+import { toCreatePayload, toUpdatePayload } from "../../src/modules/anytype/mapper";
+import type { SpaceConfig } from "../../src/modules/anytype/mapper";
+import type { ZoteroItem } from "../../src/modules/zotero/itemReader";
 
 const testConfig: SpaceConfig = {
   spaceId: "space-abc",

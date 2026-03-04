@@ -3,41 +3,78 @@
  *
  * Pure functions that convert `ZoteroAnnotation` objects into Anytype-ready
  * markdown strings. Each annotation becomes a deep-link back into Zotero's
- * PDF reader (`zotero://open-pdf/…`), optionally followed by a comment block
- * and tag list.
+ * PDF reader (`zotero://open-pdf/…?annotation=KEY`) followed by a separate
+ * page link (`zotero://open-pdf/…?page=N`). Only the page link carries the
+ * page number; the annotation link targets the annotation directly.
+ *
+ * The full body for N annotations looks like:
+ * ```
+ * ---
+ * <annotation 1>
+ *
+ * ---
+ * <annotation 2>
+ *
+ * ---
+ * ```
+ * "---\n<annotation 1>\n\n---\n<annotation 2>\n\n---\n"
  */
 
 import type { ZoteroAnnotation } from "../zotero/itemReader";
 
-
 /**
  * Builds a `zotero://open-pdf/…` deep-link URL for the given annotation.
- * Clicking the link opens Zotero's PDF reader and jumps to the exact page and
- * annotation position.
+ * Clicking the link opens Zotero's PDF reader and jumps to the exact
+ * annotation position (no page number; use {@link buildPageLink} for that).
  */
 export function buildAnnotationLink(ann: ZoteroAnnotation): string {
   const base = `zotero://open-pdf/library/items/${ann.attachmentKey}`;
   const params = new URLSearchParams();
-  if (ann.pageLabel) params.set("page", ann.pageLabel);
   params.set("annotation", ann.key);
   return `${base}?${params.toString()}`;
 }
 
 /**
- * Renders a single annotation as a compact markdown block (no `---` separator).
- * Used when appending new annotations to an already-existing Anytype object body.
+ * Builds a `zotero://open-pdf/…` URL that opens the PDF to a specific page
+ * without targeting a particular annotation.
+ */
+export function buildPageLink(ann: ZoteroAnnotation): string {
+  const base = `zotero://open-pdf/library/items/${ann.attachmentKey}`;
+  if (!ann.pageLabel) return base;
+  const params = new URLSearchParams();
+  params.set("page", ann.pageLabel);
+  return `${base}?${params.toString()}`;
+}
+
+/**
+ * The horizontal-rule token with no trailing whitespace or newline.
+ * Callers must append `"\n"` after it to produce the full fence line.
+ */
+const FENCE = "---";
+
+/**
+ * The full fence line: horizontal rule + newline.
+ * Annotation content follows immediately on the next line.
+ */
+const FENCE_LINE = FENCE + "\n";
+
+/**
+ * The separator appended after each annotation's content, before the next
+ * fence. A blank line (two newlines: one to end the last content line, one
+ * for the blank line itself).
+ */
+const CONTENT_TAIL = "\n\n";
+
+/**
+ * Renders a single annotation's inner content (no fences, no CONTENT_TAIL).
+ * The result is `<first-line>\n\n💬 …\n\n🏷️ …\n`.
  *
- * Output format:
- * ```
- * [Highlighted text](zotero://open-pdf/…)
- *
- * 💬 comment (if present)
- *
- * 🏷️ `tag1` `tag2` (if any)
- * ```
+ * Callers are responsible for appending `CONTENT_TAIL` and wrapping with fences
+ * via `appendAnnotations`.
  */
 export function renderSingleAnnotation(ann: ZoteroAnnotation): string {
-  const link = buildAnnotationLink(ann);
+  const annotationLink = buildAnnotationLink(ann);
+  const pageLink = buildPageLink(ann);
 
   let linkText: string;
   if (ann.annotationType === "image") {
@@ -50,7 +87,10 @@ export function renderSingleAnnotation(ann: ZoteroAnnotation): string {
     linkText = "Note";
   }
 
-  const parts: string[] = [`[${linkText}](${link})`];
+  const pageText = ann.pageLabel ? `Page ${ann.pageLabel}` : "Page";
+  const firstLine = `[${linkText}](${annotationLink}) - [${pageText}](${pageLink})`;
+
+  const parts: string[] = [firstLine];
 
   if (ann.comment) {
     parts.push("", `💬 ${ann.comment}`);
@@ -61,32 +101,46 @@ export function renderSingleAnnotation(ann: ZoteroAnnotation): string {
     parts.push("", `🏷️ ${tagStr}`);
   }
 
-  return parts.join("\n");
-}
-
-/** Separator inserted between annotation blocks in the object body. */
-const ANNOTATION_SEPARATOR = "\n\n\n\n";
-
-/**
- * Joins a list of annotations into a single body string, rendering each with
- * `renderSingleAnnotation` and separating them with `ANNOTATION_SEPARATOR`.
- * Returns an empty string when the list is empty.
- */
-export function joinAnnotations(annotations: ZoteroAnnotation[]): string {
-  return annotations.map(renderSingleAnnotation).join(ANNOTATION_SEPARATOR);
+  return parts.join("\n") + "\n";
 }
 
 /**
- * Appends new annotations to an existing body string. If the body is empty the
- * new chunks are returned as-is; otherwise the separator is inserted between
- * the existing content and the new chunks.
+ * Appends new annotations to an existing body string.
+ *
+ * When `existingBody` is empty the result is a fresh body containing only
+ * the new annotations. Otherwise:
+ *
+ * 1. Trailing whitespace is trimmed from `existingBody`.
+ * 2. If the trimmed body ends with bare `---`, `"\n"` is appended to
+ *    complete the fence line.
+ * 3. If the trimmed body has content after the last fence, `CONTENT_TAIL`
+ *    and the fence line are appended.
+ * 4. The new annotations are appended, each followed by `CONTENT_TAIL`.
+ *
+ * Every fence is written as `"---\n"` so that Anytype renders it as a
+ * horizontal rule with annotation content immediately following.
+ *
+ * Returns an empty string when both arguments are empty.
  */
 export function appendAnnotations(
   existingBody: string,
   newAnnotations: ZoteroAnnotation[],
 ): string {
-  const newChunks = joinAnnotations(newAnnotations);
-  if (existingBody.length === 0) return newChunks;
-  return existingBody + ANNOTATION_SEPARATOR + newChunks;
-}
+  if (newAnnotations.length === 0) return existingBody;
+  let base = existingBody.trimEnd();
+  if (base.length === 0) {
+    // Fresh body: start with the opening fence line.
+    base = FENCE_LINE;
+  } else if (base.endsWith(FENCE)) {
+    // Trimmed body ends with bare "---": complete the fence line.
+    base += "\n";
+  } else {
+    // Body has content after the last fence: close it off.
+    base += CONTENT_TAIL + FENCE_LINE;
+  }
 
+  const newContent = newAnnotations
+    .map(renderSingleAnnotation)
+    .join(CONTENT_TAIL + FENCE_LINE);
+  return base + newContent + CONTENT_TAIL + FENCE_LINE;
+}

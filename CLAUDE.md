@@ -37,6 +37,7 @@ Run `direnv allow` after cloning to activate the environment. The `zotero` layou
 ## Environment Setup
 
 `npm start` requires a `.env` file (copy `.env.example` → `.env`):
+
 - `ZOTERO_PLUGIN_ZOTERO_BIN_PATH` — path to Zotero binary (`*/Zotero.app/Contents/MacOS/zotero` on macOS)
 - `ZOTERO_PLUGIN_PROFILE_PATH` — path to dev profile (create with `zotero -p`)
 
@@ -58,7 +59,8 @@ src/modules/sync/       — syncEngine (orchestration), syncState (ID mapping pe
 ## Zotero URI Schemes
 
 - `zotero://select/library/items/KEY` — opens and selects item in Zotero
-- `zotero://open-pdf/library/items/ATTKEY?page=PAGE&annotation=ANNKEY` — opens PDF at annotation
+- `zotero://open-pdf/library/items/ATTKEY?annotation=ANNKEY` — opens PDF at annotation (no page param)
+- `zotero://open-pdf/library/items/ATTKEY?page=PAGE` — opens PDF at a specific page
 
 ## Anytype API
 
@@ -68,7 +70,7 @@ src/modules/sync/       — syncEngine (orchestration), syncState (ID mapping pe
 
 ## Data Model
 
-Anytype object type: `Book Note` (one per Zotero item). Object has a `Zotero Link` property (`zotero://select/...`). Body lists annotations as markdown links: `[text](zotero://open-pdf/library/items/ATTKEY?page=PAGE&annotation=KEY)`. Sync state (Zotero key → Anytype object ID) is persisted as JSON in `Zotero.Prefs`.
+Anytype object type: `Book Note` (one per Zotero item). Object has a `Zotero Link` property (`zotero://select/...`). Body lists annotations as markdown links: `[text](zotero://open-pdf/library/items/ATTKEY?annotation=KEY) - [Page N](zotero://open-pdf/library/items/ATTKEY?page=PAGE)`. Sync state (Zotero key → Anytype object ID) is persisted as JSON in `Zotero.Prefs`.
 
 ## Reference Docs
 
