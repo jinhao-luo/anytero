@@ -1,14 +1,16 @@
 import { assert } from "chai";
-import { SyncState } from "../src/modules/sync/syncState";
+import { SyncState } from "../../src/modules/sync/syncState";
 
 // SyncState uses Zotero.Prefs for persistence (available in the Zotero test environment).
 // Each test clears state before and after to avoid interference with real prefs.
 
 describe("SyncState", function () {
   let state: SyncState;
+  let prefKey: string;
 
   beforeEach(function () {
-    state = new SyncState();
+    prefKey = `extensions.zotero.anytero.testState.${Zotero.Utilities.randomString(20)}`;
+    state = new SyncState(prefKey);
     state.clear();
   });
 
@@ -112,28 +114,10 @@ describe("SyncState", function () {
     });
   });
 
-  describe("JSON parse error recovery", function () {
-    it("returns null when stored pref is invalid JSON", function () {
-      // Directly corrupt the underlying pref value
-      const prefKey = "extensions.zotero.anytero.syncState";
-      Zotero.Prefs.set(prefKey, "not-valid-json{{", true);
-      assert.isNull(state.getObjectId("ANY_KEY"));
-    });
-
-    it("returns empty map from getAll when stored pref is invalid JSON", function () {
-      const prefKey = "extensions.zotero.anytero.syncState";
-      Zotero.Prefs.set(prefKey, "{bad json", true);
-      assert.deepEqual(state.getAll(), {});
-    });
-
-    it("recovers and stores new values after a parse error", function () {
-      const prefKey = "extensions.zotero.anytero.syncState";
-      Zotero.Prefs.set(prefKey, "corrupted", true);
-      // getAll returns {} without throwing
-      state.getAll();
-      // Now set a value — should succeed by overwriting the corrupt pref
-      state.set("KEY1", "obj-1");
-      assert.strictEqual(state.getObjectId("KEY1"), "obj-1");
+  describe("malformed mappings", function () {
+    it("fails closed instead of discarding mappings and duplicating pages", function () {
+      Zotero.Prefs.set(prefKey, "not-valid-json", true);
+      assert.throws(() => state.getAll(), "mapping preference is malformed");
     });
   });
 });

@@ -1,5 +1,7 @@
 # AnyTero
 
+This checkout now contains a TypeScript port of the supplied customized **v0.1.9 PDF-only XPI**, versioned **0.1.10**. See [the source-port guide](docs/reference-v0.1.9-port.md) for its behavior, compatibility, build instructions, and remaining limitations. The upstream annotation-sync description below documents the original project rather than this customized PDF pipeline.
+
 Inspired by [notero](https://github.com/dvanoni/notero)✨.
 
 **AnyTero** is a [Zotero 7+](https://www.zotero.org) plugin that syncs your PDF annotations from Zotero into an [Anytype](https://anytype.io) space.

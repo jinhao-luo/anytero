@@ -12,6 +12,7 @@ declare namespace _ZoteroTypes {
       "spaceId": string;
       "objectTypeKey": string;
       "syncMode": string;
+      "collectionId": string;
       "initialized": boolean;
     };
   }

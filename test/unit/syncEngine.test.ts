@@ -1,631 +1,160 @@
-import { assert } from "chai";
+﻿import { assert } from "chai";
 import { SyncEngine } from "../../src/modules/sync/syncEngine";
-import type {
-  ItemReader,
-  ZoteroItem,
-  ZoteroAnnotation,
-} from "../../src/modules/zotero/itemReader";
-import type { AnytypeClient } from "../../src/modules/anytype/client";
-import type { SpaceConfig } from "../../src/modules/anytype/mapper";
+import { AnytypeHttpError } from "../../src/modules/anytype/client";
 
-// ---------------------------------------------------------------------------
-// Test fixtures
-// ---------------------------------------------------------------------------
-
-const testConfig: SpaceConfig = {
-  spaceId: "space-test",
-  typeKey: "zotero_item",
-  relations: {
-    zoteroLink: "rel_zoteroLink",
-  },
-};
-
-function makeZoteroItem(overrides: Partial<ZoteroItem> = {}): ZoteroItem {
-  return {
+function harness() {
+  const data: Record<string, string> = {};
+  const item: any = {
     id: 1,
-    key: "ITEM001",
-    title: "Test Paper",
-    itemType: "journalArticle",
-    creators: [{ firstName: "John", lastName: "Doe", creatorType: "author" }],
-    year: "2023",
-    doi: null,
-    publication: null,
-    tags: [],
-    dateModified: "2024-01-01",
-    ...overrides,
+    key: "PAPER001",
+    title: "Paper",
+    libraryID: 1,
+    isAttachment: () => false,
+    isAnnotation: () => false,
+    isNote: () => false,
+    getCollections: () => [10],
   };
-}
-
-function makeAnnotation(
-  overrides: Partial<ZoteroAnnotation> = {},
-): ZoteroAnnotation {
-  return {
-    id: 10,
-    key: "ANN001",
-    attachmentKey: "ATT001",
-    annotationType: "highlight",
-    text: "Important passage",
-    comment: null,
-    color: null,
-    pageLabel: "1",
-    position: null,
-    tags: [],
-    dateModified: "2024-01-01",
-    ...overrides,
+  const calls = { creates: [] as any[], pdf: [] as any[], deleted: 0 };
+  (globalThis as any).Zotero = {
+    Libraries: { userLibraryID: 1 },
+    Prefs: { get: () => "10" },
+    Collections: { get: () => ({ libraryID: 1 }), getByParent: () => [] },
+    Items: { get: () => item },
+    debug: () => {},
   };
-}
-
-// ---------------------------------------------------------------------------
-// Minimal mock implementations
-// ---------------------------------------------------------------------------
-
-interface CallLog {
-  createObject: Array<{ spaceId: string; payload: unknown }>;
-  updateObject: Array<{ spaceId: string; objectId: string; payload: unknown }>;
-  deleteObject: Array<{ spaceId: string; objectId: string }>;
-}
-
-function makeClient(
-  createObjectReturn = "new-obj-id",
-  existingBody = "",
-  trackedItemKey = "ITEM001",
-): [AnytypeClient, CallLog] {
-  const calls: CallLog = {
-    createObject: [],
-    updateObject: [],
-    deleteObject: [],
+  const state: any = {
+    getObjectId: (k: string) => data[k] ?? null,
+    set: (k: string, id: string) => {
+      data[k] = id;
+    },
+    remove: (k: string) => {
+      delete data[k];
+    },
   };
-  const client = {
-    async createObject(spaceId: string, payload: unknown): Promise<string> {
-      calls.createObject.push({ spaceId, payload });
-      return createObjectReturn;
+  const client: any = {
+    getObject: async () => ({
+      archived: false,
+      properties: [
+        { key: "zotero", url: "zotero://select/library/items/PAPER001" },
+      ],
+    }),
+    listSpaces: async () => [{ id: "space" }],
+    createObject: async (_space: string, payload: any) => {
+      calls.creates.push(payload);
+      return "new-page";
     },
-    async updateObject(
-      spaceId: string,
-      objectId: string,
-      payload: unknown,
-    ): Promise<void> {
-      calls.updateObject.push({ spaceId, objectId, payload });
+    updateObject: async () => assert.fail("Whole-body updates are forbidden"),
+    deleteObject: async () => {
+      calls.deleted++;
     },
-    async deleteObject(spaceId: string, objectId: string): Promise<void> {
-      calls.deleteObject.push({ spaceId, objectId });
-    },
-    async getObject(_spaceId: string, _objectId: string) {
-      return {
-        markdown: existingBody,
-        archived: false,
-        properties: [
-          {
-            key: testConfig.relations.zoteroLink,
-            url: `zotero://select/library/items/${trackedItemKey}`,
-            format: "url",
-            name: "Zotero Link",
-          },
-        ],
-      };
-    },
-    listSpaces: async () => [],
-    listTypes: async () => [],
-  } as unknown as AnytypeClient;
-  return [client, calls];
-}
-
-interface StateStore {
-  [key: string]: string;
-}
-
-function makeState(initial: StateStore = {}) {
-  const store: StateStore = { ...initial };
-  return {
-    state: {
-      getObjectId: (key: string) => store[key] ?? null,
-      set: (key: string, id: string) => {
-        store[key] = id;
-      },
-      remove: (key: string) => {
-        delete store[key];
-      },
-      getAll: () => ({ ...store }),
-      clear: () => {
-        for (const k of Object.keys(store)) delete store[k];
-      },
-    },
-    store,
   };
+  const reader: any = {
+    getItem: () => item,
+    getAllItemsWithAnnotations: async () => [item],
+    getAnnotations: () => assert.fail("Annotation text must never be read"),
+  };
+  const pdf: any = {
+    sync: async (...args: any[]) => {
+      calls.pdf.push(args);
+    },
+  };
+  const engine = new SyncEngine(reader, client, state, pdf);
+  engine.setSpaceConfig({
+    spaceId: "space",
+    typeKey: "paper",
+    relations: { zoteroLink: "zotero" },
+  });
+  return { engine, calls, data, client, reader, item, pdf };
 }
 
-function makeItemReader(
-  items: ZoteroItem[],
-  annotations: ZoteroAnnotation[] = [makeAnnotation()],
-): ItemReader {
-  const byId = new Map(items.map((i) => [i.id, i]));
-  return {
-    getItem: (id: number) => byId.get(id) ?? null,
-    getAnnotations: (_itemId: number) => annotations,
-    getAllItemsWithAnnotations: async () => items,
-  } as unknown as ItemReader;
-}
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
-describe("SyncEngine", function () {
-  describe("syncItem — no space config", function () {
-    it("does nothing when spaceConfig is not set", async function () {
-      const [client, calls] = makeClient();
-      const { state } = makeState();
-      const item = makeZoteroItem();
-      const engine = new SyncEngine(
-        makeItemReader([item]),
-        client,
-        state as any,
-      );
-      await engine.syncItem(item.id);
-      assert.isEmpty(calls.createObject);
-      assert.isEmpty(calls.updateObject);
-    });
+describe("v0.1.9 PDF-only engine port", function () {
+  it("creates an empty page through v1 and delegates PDF rendering", async function () {
+    const h = harness();
+    await h.engine.syncItem(1);
+    assert.equal(h.calls.creates[0].body, "");
+    assert.equal(h.calls.creates[0].type_key, "paper");
+    assert.equal(h.data.PAPER001, "new-page");
+    assert.isTrue(h.calls.pdf[0][4]);
   });
 
-  describe("syncItem — item not found", function () {
-    it("does nothing when getItem returns null", async function () {
-      const [client, calls] = makeClient();
-      const { state } = makeState();
-      const engine = new SyncEngine(
-        makeItemReader([]), // no items
-        client,
-        state as any,
-      );
-      engine.setSpaceConfig(testConfig);
-      await engine.syncItem(999);
-      assert.isEmpty(calls.createObject);
-      assert.isEmpty(calls.updateObject);
-    });
+  it("preserves existing pages and serializes concurrent events", async function () {
+    const h = harness();
+    h.data.PAPER001 = "existing";
+    await Promise.all([h.engine.syncItem(1), h.engine.syncItem(1)]);
+    assert.isEmpty(h.calls.creates);
+    assert.equal(h.calls.pdf[0][3], "existing");
+    assert.isFalse(h.calls.pdf[0][4]);
   });
 
-  describe("syncItem — create branch", function () {
-    it("calls createObject when item has no existing mapping", async function () {
-      const [client, calls] = makeClient("obj-created");
-      const { state, store } = makeState(); // empty state
-      const item = makeZoteroItem();
-      const engine = new SyncEngine(
-        makeItemReader([item]),
-        client,
-        state as any,
-      );
-      engine.setSpaceConfig(testConfig);
-
-      await engine.syncItem(item.id);
-
-      assert.lengthOf(calls.createObject, 1);
-      assert.isEmpty(calls.updateObject);
-      assert.strictEqual(calls.createObject[0].spaceId, "space-test");
-    });
-
-    it("saves the returned object ID to state after create", async function () {
-      const [client] = makeClient("obj-created");
-      const { state, store } = makeState();
-      const item = makeZoteroItem({ key: "ITEM001" });
-      const engine = new SyncEngine(
-        makeItemReader([item]),
-        client,
-        state as any,
-      );
-      engine.setSpaceConfig(testConfig);
-
-      await engine.syncItem(item.id);
-
-      assert.strictEqual(store["ITEM001"], "obj-created");
-    });
-
-    it("passes type_key in the create payload", async function () {
-      const [client, calls] = makeClient();
-      const { state } = makeState();
-      const item = makeZoteroItem();
-      const engine = new SyncEngine(
-        makeItemReader([item]),
-        client,
-        state as any,
-      );
-      engine.setSpaceConfig(testConfig);
-
-      await engine.syncItem(item.id);
-
-      const payload = calls.createObject[0].payload as any;
-      assert.strictEqual(payload.type_key, "zotero_item");
-    });
+  it("recreates a definitively deleted page", async function () {
+    const h = harness();
+    h.data.PAPER001 = "gone";
+    h.client.getObject = async () => {
+      throw new AnytypeHttpError(410);
+    };
+    await h.engine.syncItem(1);
+    assert.lengthOf(h.calls.creates, 1);
   });
 
-  describe("syncItem — update branch", function () {
-    it("calls updateObject when item already has a mapping", async function () {
-      const [client, calls] = makeClient();
-      const item = makeZoteroItem({ key: "ITEM001" });
-      const { state } = makeState({ ITEM001: "existing-obj-id" });
-      const engine = new SyncEngine(
-        makeItemReader([item]),
-        client,
-        state as any,
-      );
-      engine.setSpaceConfig(testConfig);
-
-      await engine.syncItem(item.id);
-
-      assert.isEmpty(calls.createObject);
-      assert.lengthOf(calls.updateObject, 1);
-      assert.strictEqual(calls.updateObject[0].objectId, "existing-obj-id");
-      assert.strictEqual(calls.updateObject[0].spaceId, "space-test");
-    });
-
-    it("does not overwrite state entry on update", async function () {
-      const [client] = makeClient();
-      const item = makeZoteroItem({ key: "ITEM001" });
-      const { state, store } = makeState({ ITEM001: "existing-obj-id" });
-      const engine = new SyncEngine(
-        makeItemReader([item]),
-        client,
-        state as any,
-      );
-      engine.setSpaceConfig(testConfig);
-
-      await engine.syncItem(item.id);
-
-      assert.strictEqual(store["ITEM001"], "existing-obj-id");
-    });
-
-    it("update payload does not include type_key", async function () {
-      const [client, calls] = makeClient();
-      const item = makeZoteroItem({ key: "ITEM001" });
-      const { state } = makeState({ ITEM001: "existing-obj-id" });
-      const engine = new SyncEngine(
-        makeItemReader([item]),
-        client,
-        state as any,
-      );
-      engine.setSpaceConfig(testConfig);
-
-      await engine.syncItem(item.id);
-
-      const payload = calls.updateObject[0].payload as any;
-      assert.notProperty(payload, "type_key");
-    });
+  it("never creates duplicates on API failure or relation mismatch", async function () {
+    const h = harness();
+    h.data.PAPER001 = "existing";
+    h.client.getObject = async () => {
+      throw new AnytypeHttpError(500);
+    };
+    try {
+      await h.engine.syncItem(1);
+      assert.fail();
+    } catch (error) {
+      assert.include(String(error), "500");
+    }
+    assert.isEmpty(h.calls.creates);
+    assert.equal(h.data.PAPER001, "existing");
+    h.client.getObject = async () => ({ archived: false, properties: [] });
+    try {
+      await h.engine.syncItem(1);
+      assert.fail();
+    } catch (error) {
+      assert.include(String(error), "unexpected Zotero link");
+    }
+    assert.isEmpty(h.calls.creates);
   });
 
-  describe("syncItem — error handling", function () {
-    it("does not throw when client.createObject rejects", async function () {
-      const failClient = {
-        createObject: async () => {
-          throw new Error("API down");
-        },
-        updateObject: async () => {},
-        deleteObject: async () => {},
-        getObject: async () => ({
-          markdown: "",
-          archived: false,
-          properties: [],
-        }),
-        listSpaces: async () => [],
-        listTypes: async () => [],
-      } as unknown as AnytypeClient;
-
-      const { state } = makeState();
-      const item = makeZoteroItem();
-      const engine = new SyncEngine(
-        makeItemReader([item]),
-        failClient,
-        state as any,
-      );
-      engine.setSpaceConfig(testConfig);
-
-      // SyncEngine catches errors internally; the promise should resolve
-      await engine.syncItem(item.id);
-    });
-
-    it("does not throw when client.updateObject rejects", async function () {
-      const failClient = {
-        createObject: async () => "id",
-        updateObject: async () => {
-          throw new Error("API down");
-        },
-        deleteObject: async () => {},
-        getObject: async () => ({
-          markdown: "",
-          archived: false,
-          properties: [
-            {
-              key: testConfig.relations.zoteroLink,
-              url: "zotero://select/library/items/ITEM001",
-              format: "url",
-              name: "Zotero Link",
-            },
-          ],
-        }),
-        listSpaces: async () => [],
-        listTypes: async () => [],
-      } as unknown as AnytypeClient;
-
-      const item = makeZoteroItem({ key: "ITEM001" });
-      const { state } = makeState({ ITEM001: "existing-id" });
-      const engine = new SyncEngine(
-        makeItemReader([item]),
-        failClient,
-        state as any,
-      );
-      engine.setSpaceConfig(testConfig);
-
-      // SyncEngine catches errors internally; the promise should resolve
-      await engine.syncItem(item.id);
-    });
-
-    it("does not throw when itemReader.getItem throws", async function () {
-      const [client] = makeClient();
-      const { state } = makeState();
-      const throwingReader = {
-        getItem: (_id: number) => {
-          throw new Error("Zotero DB error");
-        },
-        getAnnotations: () => [],
-        getAllItemsWithAnnotations: async () => [],
-      } as unknown as ItemReader;
-      const engine = new SyncEngine(throwingReader, client, state as any);
-      engine.setSpaceConfig(testConfig);
-
-      // Must not throw even when the Zotero read itself fails
-      await engine.syncItem(1);
-    });
-
-    it("does not throw when itemReader.getAnnotations throws", async function () {
-      const [client] = makeClient();
-      const { state } = makeState();
-      const item = makeZoteroItem();
-      const throwingReader = {
-        getItem: (_id: number) => item,
-        getAnnotations: (_itemId: number) => {
-          throw new Error("Zotero DB error");
-        },
-        getAllItemsWithAnnotations: async () => [],
-      } as unknown as ItemReader;
-      const engine = new SyncEngine(throwingReader, client, state as any);
-      engine.setSpaceConfig(testConfig);
-
-      await engine.syncItem(item.id);
-    });
+  it("does not recreate a page when its destination space is inaccessible", async function () {
+    const h = harness();
+    h.data.PAPER001 = "existing";
+    h.client.getObject = async () => {
+      throw new AnytypeHttpError(404);
+    };
+    h.client.listSpaces = async () => [];
+    try {
+      await h.engine.syncItem(1);
+      assert.fail();
+    } catch (error) {
+      assert.include(String(error), "space is unavailable");
+    }
+    assert.equal(h.data.PAPER001, "existing");
+    assert.isEmpty(h.calls.creates);
   });
 
-  describe("syncItem — error isolation in fullSync", function () {
-    it("continues syncing remaining items when one item's getAnnotations throws", async function () {
-      const [client, calls] = makeClient();
-      const { state } = makeState();
-      const item1 = makeZoteroItem({ id: 1, key: "K1" });
-      const item2 = makeZoteroItem({ id: 2, key: "K2" });
-      const item3 = makeZoteroItem({ id: 3, key: "K3" });
-
-      // item2's getAnnotations throws; items 1 and 3 should still be synced
-      const partialReader = {
-        getItem: (id: number) =>
-          [item1, item2, item3].find((i) => i.id === id) ?? null,
-        getAnnotations: (itemId: number) => {
-          const item = [item1, item2, item3].find((i) => i.id === itemId)!;
-          if (item.key === "K2") throw new Error("Zotero DB error for K2");
-          return [makeAnnotation({ key: `ANN-${item.key}` })];
-        },
-        getAllItemsWithAnnotations: async () => [item1, item2, item3],
-      } as unknown as ItemReader;
-
-      const engine = new SyncEngine(partialReader, client, state as any);
-      engine.setSpaceConfig(testConfig);
-
-      const count = await engine.fullSync();
-
-      // All 3 items are counted (fullSync iterates all regardless of per-item errors)
-      assert.strictEqual(count, 3);
-      // Items 1 and 3 produced successful createObject calls; item 2 was skipped
-      assert.lengthOf(calls.createObject, 2);
-      const createdKeys = calls.createObject.map(
-        (c) => (c.payload as any).properties[0].url,
-      );
-      assert.include(createdKeys, "zotero://select/library/items/K1");
-      assert.include(createdKeys, "zotero://select/library/items/K3");
-    });
+  it("skips items outside the collection and preserves mappings on source deletion", async function () {
+    const h = harness();
+    h.item.getCollections = () => [99];
+    h.data.PAPER001 = "existing";
+    await h.engine.syncItem(1);
+    await h.engine.deleteItem("PAPER001");
+    assert.isEmpty(h.calls.pdf);
+    assert.equal(h.calls.deleted, 0);
+    assert.equal(h.data.PAPER001, "existing");
   });
 
-  describe("deleteItem", function () {
-    it("does nothing when spaceConfig is not set", async function () {
-      const [client, calls] = makeClient();
-      const { state } = makeState({ ITEM001: "obj-id" });
-      const engine = new SyncEngine(makeItemReader([]), client, state as any);
-
-      await engine.deleteItem("ITEM001");
-
-      assert.isEmpty(calls.deleteObject);
-    });
-
-    it("does nothing when item has no state mapping", async function () {
-      const [client, calls] = makeClient();
-      const { state } = makeState(); // empty
-      const engine = new SyncEngine(makeItemReader([]), client, state as any);
-      engine.setSpaceConfig(testConfig);
-
-      await engine.deleteItem("ITEM001");
-
-      assert.isEmpty(calls.deleteObject);
-    });
-
-    it("calls deleteObject with correct spaceId and objectId", async function () {
-      const [client, calls] = makeClient();
-      const { state } = makeState({ ITEM001: "obj-to-delete" });
-      const engine = new SyncEngine(makeItemReader([]), client, state as any);
-      engine.setSpaceConfig(testConfig);
-
-      await engine.deleteItem("ITEM001");
-
-      assert.lengthOf(calls.deleteObject, 1);
-      assert.strictEqual(calls.deleteObject[0].spaceId, "space-test");
-      assert.strictEqual(calls.deleteObject[0].objectId, "obj-to-delete");
-    });
-
-    it("removes the state entry after successful delete", async function () {
-      const [client] = makeClient();
-      const { state, store } = makeState({ ITEM001: "obj-to-delete" });
-      const engine = new SyncEngine(makeItemReader([]), client, state as any);
-      engine.setSpaceConfig(testConfig);
-
-      await engine.deleteItem("ITEM001");
-
-      assert.isUndefined(store["ITEM001"]);
-    });
-
-    it("does not throw when deleteObject rejects", async function () {
-      const failClient = {
-        createObject: async () => "id",
-        updateObject: async () => {},
-        deleteObject: async () => {
-          throw new Error("not found");
-        },
-        getObject: async () => ({
-          markdown: "",
-          archived: false,
-          properties: [],
-        }),
-        listSpaces: async () => [],
-        listTypes: async () => [],
-      } as unknown as AnytypeClient;
-
-      const { state } = makeState({ ITEM001: "obj-id" });
-      const engine = new SyncEngine(
-        makeItemReader([]),
-        failClient,
-        state as any,
-      );
-      engine.setSpaceConfig(testConfig);
-
-      // SyncEngine catches errors internally; the promise should resolve
-      await engine.deleteItem("ITEM001");
-    });
-  });
-
-  describe("fullSync", function () {
-    it("returns 0 and does nothing when spaceConfig is not set", async function () {
-      const [client, calls] = makeClient();
-      const { state } = makeState();
-      const item = makeZoteroItem();
-      const engine = new SyncEngine(
-        makeItemReader([item]),
-        client,
-        state as any,
-      );
-
-      const count = await engine.fullSync();
-
-      assert.strictEqual(count, 0);
-      assert.isEmpty(calls.createObject);
-    });
-
-    it("returns the number of items synced", async function () {
-      const [client] = makeClient();
-      const { state } = makeState();
-      const items = [
-        makeZoteroItem({ id: 1, key: "K1" }),
-        makeZoteroItem({ id: 2, key: "K2" }),
-      ];
-      const engine = new SyncEngine(
-        makeItemReader(items),
-        client,
-        state as any,
-      );
-      engine.setSpaceConfig(testConfig);
-
-      const count = await engine.fullSync();
-
-      assert.strictEqual(count, 2);
-    });
-
-    it("calls syncItem for each item returned by getAllItemsWithAnnotations", async function () {
-      const [client, calls] = makeClient();
-      const { state } = makeState();
-      const items = [
-        makeZoteroItem({ id: 1, key: "K1" }),
-        makeZoteroItem({ id: 2, key: "K2" }),
-      ];
-      const engine = new SyncEngine(
-        makeItemReader(items),
-        client,
-        state as any,
-      );
-      engine.setSpaceConfig(testConfig);
-
-      await engine.fullSync();
-
-      assert.lengthOf(calls.createObject, 2);
-    });
-
-    it("invokes progress callback for each item", async function () {
-      const [client] = makeClient();
-      const { state } = makeState();
-      const items = [
-        makeZoteroItem({ id: 1, key: "K1" }),
-        makeZoteroItem({ id: 2, key: "K2" }),
-      ];
-      const engine = new SyncEngine(
-        makeItemReader(items),
-        client,
-        state as any,
-      );
-      engine.setSpaceConfig(testConfig);
-
-      const progressReports: Array<{ current: number; total: number }> = [];
-      await engine.fullSync((p) => progressReports.push({ ...p }));
-
-      assert.deepEqual(progressReports, [
-        { current: 1, total: 2 },
-        { current: 2, total: 2 },
-      ]);
-    });
-
-    it("prunes state entries for items no longer in Zotero", async function () {
-      const [client] = makeClient();
-      // State has two entries; only K1 is returned by getAllItemsWithAnnotations
-      const { state, store } = makeState({ K1: "obj-1", STALE: "obj-stale" });
-      const items = [makeZoteroItem({ id: 1, key: "K1" })];
-      const engine = new SyncEngine(
-        makeItemReader(items),
-        client,
-        state as any,
-      );
-      engine.setSpaceConfig(testConfig);
-
-      await engine.fullSync();
-
-      assert.notProperty(store, "STALE");
-    });
-
-    it("keeps state entries for items that are still active", async function () {
-      const [client] = makeClient();
-      const { state, store } = makeState({ K1: "obj-1" });
-      const items = [makeZoteroItem({ id: 1, key: "K1" })];
-      const engine = new SyncEngine(
-        makeItemReader(items),
-        client,
-        state as any,
-      );
-      engine.setSpaceConfig(testConfig);
-
-      await engine.fullSync();
-
-      // K1 should still exist (updated, not pruned)
-      assert.property(store, "K1");
-    });
-
-    it("handles empty item list gracefully, returning 0", async function () {
-      const [client] = makeClient();
-      const { state } = makeState({ STALE: "obj-stale" });
-      const engine = new SyncEngine(makeItemReader([]), client, state as any);
-      engine.setSpaceConfig(testConfig);
-
-      const count = await engine.fullSync();
-
-      assert.strictEqual(count, 0);
-      // Stale entry should be pruned since no active items
-      assert.notProperty(state.getAll(), "STALE");
-    });
+  it("continues collection sync after a paper failure without pruning old mappings", async function () {
+    const h = harness();
+    h.data.UNRELATED = "keep";
+    h.pdf.sync = async () => {
+      throw new Error("PDF error");
+    };
+    assert.equal(await h.engine.fullSync(), 1);
+    assert.equal(h.data.UNRELATED, "keep");
   });
 });

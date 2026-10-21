@@ -12,6 +12,8 @@
  * - `Zotero.Items.getAll()` is typed as returning IDs; double-cast needed.
  */
 
+import { AnyTeroCollectionFilter } from "./collectionFilter";
+
 /** Author / editor / translator metadata for a Zotero library item. */
 export interface ZoteroCreator {
   firstName: string;
@@ -111,6 +113,11 @@ export class ItemReader {
    */
   async getAllItemsWithAnnotations(): Promise<ZoteroItem[]> {
     const results: ZoteroItem[] = [];
+    const allowedIds = AnyTeroCollectionFilter.collectionIds();
+    if (!allowedIds)
+      throw new Error(
+        "Select a valid Zotero collection in AnyTero settings before syncing.",
+      );
     const allItems = await Zotero.Items.getAll(
       Zotero.Libraries.userLibraryID,
       true,
@@ -119,12 +126,18 @@ export class ItemReader {
     );
 
     for (const item of allItems) {
+      if (!AnyTeroCollectionFilter.allows(item, allowedIds)) continue;
       const attachments = item.isFileAttachment()
         ? [item.id]
         : item.getAttachments();
       for (const attId of attachments) {
         const att = Zotero.Items.get(attId);
-        if (att.isFileAttachment() && att.numAnnotations() > 0) {
+        if (
+          att &&
+          !att.deleted &&
+          att.isFileAttachment() &&
+          att.attachmentContentType === "application/pdf"
+        ) {
           results.push(this._toZoteroItem(item));
 
           break;

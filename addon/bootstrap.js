@@ -24,7 +24,18 @@ async function startup({ id, version, resourceURI, rootURI }, reason) {
    * and all child variables assigned to it is globally accessible.
    * See `src/index.ts` for details.
    */
-  const ctx = { rootURI };
+  await Zotero.uiReadyPromise;
+  const runtime = Zotero.getMainWindow();
+  const ctx = {
+    rootURI,
+    Zotero,
+    IOUtils: runtime.IOUtils,
+    TextEncoder: runtime.TextEncoder,
+    TextDecoder: runtime.TextDecoder,
+    fetch: runtime.fetch.bind(runtime),
+    setTimeout: runtime.setTimeout.bind(runtime),
+    clearTimeout: runtime.clearTimeout.bind(runtime),
+  };
   ctx._globalThis = ctx;
 
   Services.scriptloader.loadSubScript(

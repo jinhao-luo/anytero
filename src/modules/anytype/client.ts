@@ -10,7 +10,18 @@
  * obtained from Anytype Settings → API Keys.
  */
 
+import { PdfClient } from "./pdfClient";
 const ANYTYPE_API_VERSION = "2025-11-08";
+
+/** Preserve status codes so only definitive missing/deleted responses permit recreation. */
+export class AnytypeHttpError extends Error {
+  constructor(
+    public status: number,
+    details = "",
+  ) {
+    super(`Anytype API HTTP ${status}${details ? `: ${details}` : ""}`);
+  }
+}
 
 /** Minimal representation of an Anytype space returned by `GET /spaces`. */
 export interface AnytypeSpace {
@@ -111,11 +122,12 @@ export function patchMarkdown(markdown: string): string {
  * - Required auth and versioning headers
  * - Error handling (throws on non-2xx responses with the response body)
  */
-export class AnytypeClient {
+export class AnytypeClient extends PdfClient {
   private _baseUrl: string;
   private _apiKey: string;
 
   constructor(port: number, apiKey: string) {
+    super(port, apiKey);
     // TODO: allow hostname to be configurable (currently hardcoded to 127.0.0.1)
     this._baseUrl = `http://127.0.0.1:${port}/v1`;
     this._apiKey = apiKey;
@@ -144,7 +156,10 @@ export class AnytypeClient {
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(`Anytype API error ${response.status}: ${body}`);
+      const safe = this._apiKey
+        ? body.split(this._apiKey).join("[REDACTED]")
+        : body;
+      throw new AnytypeHttpError(response.status, safe.slice(0, 800));
     }
 
     return response.json();

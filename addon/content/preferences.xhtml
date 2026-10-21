@@ -73,6 +73,24 @@
   </hbox>
 
   <!-- Sync Options -->
+  <hbox align="center">
+    <html:label for="anytero-pref-collection">Zotero Collection</html:label>
+    <menulist
+      id="anytero-pref-collection"
+      style="flex: 1"
+      oncommand="
+        Zotero.__addonInstance__.hooks.onPrefsEvent('collectionChange', {
+          window,
+        })
+      "
+    >
+      <menupopup id="anytero-pref-collection-popup" />
+    </menulist>
+  </hbox>
+  <html:p
+    >Includes PDFs without highlights and all nested subcollections. No
+    selection disables synchronization.</html:p
+  >
   <label><html:h2 data-l10n-id="pref-sync-header"></html:h2></label>
 
   <hbox align="center">
@@ -81,7 +99,14 @@
       data-l10n-id="pref-sync-mode-label"
       style="min-width: 6em"
     ></html:label>
-    <menulist id="anytero-pref-sync-mode" preference="syncMode" style="flex: 1">
+    <menulist
+      id="anytero-pref-sync-mode"
+      preference="syncMode"
+      style="flex: 1"
+      oncommand="
+        Zotero.__addonInstance__.hooks.onPrefsEvent('modeChange', { window })
+      "
+    >
       <menupopup>
         <menuitem value="realtime" data-l10n-id="pref-sync-mode-realtime" />
         <menuitem value="manual" data-l10n-id="pref-sync-mode-manual" />
@@ -90,6 +115,14 @@
   </hbox>
 
   <hbox>
+    <button
+      label="Test Selected PDF"
+      oncommand="
+        Zotero.__addonInstance__.hooks.onPrefsEvent('testSelectedPDF', {
+          window,
+        })
+      "
+    />
     <button
       id="anytero-pref-sync-now"
       data-l10n-id="pref-sync-now-button"
@@ -106,6 +139,29 @@
       "
     />
   </hbox>
+  <html:label for="anytero-pdf-status">PDF diagnostic messages</html:label>
+  <html:textarea
+    id="anytero-pdf-status"
+    readonly="readonly"
+    rows="10"
+    style="
+      box-sizing: border-box;
+      width: 100%;
+      border: 2px solid #b42318;
+      background: #fff1f0;
+      color: #7a271a;
+      padding: 10px;
+      font-family: monospace;
+      user-select: text;
+    "
+    aria-live="polite"
+  ></html:textarea>
+  <button
+    label="Copy messages"
+    oncommand="
+      Zotero.__addonInstance__.hooks.onPrefsEvent('copyStatus', { window })
+    "
+  />
 </groupbox>
 
 <vbox>

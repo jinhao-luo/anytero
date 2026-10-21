@@ -26,8 +26,8 @@ interface StateMap {
 export class SyncState {
   private _prefKey: string;
 
-  constructor() {
-    this._prefKey = `${config.prefsPrefix}.${PREF_KEY}`;
+  constructor(prefKey = `${config.prefsPrefix}.${PREF_KEY}`) {
+    this._prefKey = prefKey;
   }
 
   /** Returns the Anytype object ID for a Zotero key, or `null` if unmapped. */
@@ -62,9 +62,22 @@ export class SyncState {
     try {
       const raw = Zotero.Prefs.get(this._prefKey, true) as string | undefined;
       if (!raw) return {};
-      return JSON.parse(raw) as StateMap;
+      const parsed: unknown = JSON.parse(raw);
+      if (
+        !parsed ||
+        typeof parsed !== "object" ||
+        Array.isArray(parsed) ||
+        Object.values(parsed).some(
+          (value) => typeof value !== "string" || !value,
+        )
+      ) {
+        throw new Error("Invalid mapping shape");
+      }
+      return parsed as StateMap;
     } catch {
-      return {};
+      throw new Error(
+        "AnyTero mapping preference is malformed; restore it before syncing to avoid duplicate pages",
+      );
     }
   }
 

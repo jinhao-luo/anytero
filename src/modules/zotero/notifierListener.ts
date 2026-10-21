@@ -86,6 +86,8 @@ export class NotifierListener {
         // Sync the parent item (the library item, not just the attachment)
         const parentId = this._resolveLibraryItemId(item);
         if (parentId !== null) this._enqueueSync(parentId);
+      } else if (item.isFileAttachment() && item.parentID) {
+        this._enqueueSync(item.parentID);
       } else if (!item.isAttachment() && !item.isNote()) {
         // Direct item modification (e.g. title/authors changed)
         this._enqueueSync(id);

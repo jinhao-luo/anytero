@@ -1,8 +1,8 @@
 {
   "name": "anytero",
   "type": "module",
-  "version": "0.1.0",
-  "description": "Zotero plugin that syncs annotations to an Anytype space",
+  "version": "0.1.10",
+  "description": "Zotero PDF synchronization to Anytype, ported from the customized v0.1.9 build",
   "config": {
     "addonName": "AnyTero",
     "addonID": "anytero@jinhaoluo.com",
@@ -27,7 +27,7 @@
     "lint:fix": "prettier --write . && eslint . --fix",
     "release": "zotero-plugin release",
     "test": "zotero-plugin test",
-    "test:unit": "mocha --require tsx/esm --file test/setup.ts 'test/unit/**/*.test.ts'",
+    "test:unit": "mocha --require tsx/esm --file test/setup.ts \"test/unit/**/*.test.ts\"",
     "update-deps": "npm update --save"
   },
   "dependencies": {

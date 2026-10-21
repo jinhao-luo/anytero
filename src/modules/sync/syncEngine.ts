@@ -1,237 +1,129 @@
-/**
- * @file syncEngine.ts
- *
- * Central sync orchestrator for AnyTero. Coordinates between the Zotero item
- * reader, the Anytype REST client, and the sync state store to create, update,
- * and delete Anytype objects that mirror Zotero library items.
- *
- * Sync strategies:
- * - **Create**: when no Anytype object exists yet for a Zotero item, a new
- *   object is created with the full annotation body.
- * - **Incremental update**: when an object already exists, only annotations
- *   whose text is not found in the current body are appended. This preserves
- *   any manual edits the user has made in Anytype.
- * - **Delete**: removes the Anytype object and the corresponding sync state
- *   entry.
- * - **Full sync**: iterates all items with annotations, calls `syncItem` for
- *   each, then prunes stale state entries for items no longer in Zotero.
- */
-
+﻿/** @file PDF-only orchestration ported from the supplied v0.1.9 XPI. */
 import { ItemReader } from "../zotero/itemReader";
-import { AnytypeClient } from "../anytype/client";
-import { appendAnnotations } from "../anytype/bodyRenderer";
-import { toCreatePayload, toUpdatePayload } from "../anytype/mapper";
-import type { SpaceConfig } from "../anytype/mapper";
+import { AnyTeroCollectionFilter } from "../zotero/collectionFilter";
+import { AnytypeClient, AnytypeHttpError } from "../anytype/client";
+import { toCreatePayload, type SpaceConfig } from "../anytype/mapper";
 import { SyncState } from "./syncState";
+import { PdfSync } from "./pdfSync";
+import { PdfStatus } from "./pdfStatus";
 
-/** Progress snapshot passed to `ProgressCallback` during a full sync. */
 export interface SyncProgress {
   current: number;
   total: number;
 }
-
-/** Callback invoked after each item is processed during `fullSync`. */
 export type ProgressCallback = (progress: SyncProgress) => void;
+let queue: Promise<unknown> = Promise.resolve();
 
-/**
- * Orchestrates annotation sync between Zotero and Anytype.
- *
- * Must be configured with a `SpaceConfig` (via `setSpaceConfig`) before any
- * sync operations are called.
- */
 export class SyncEngine {
-  private _itemReader: ItemReader;
-  private _client: AnytypeClient;
-  private _state: SyncState;
-  private _spaceConfig: SpaceConfig | null = null;
-
-  constructor(itemReader: ItemReader, client: AnytypeClient, state: SyncState) {
-    this._itemReader = itemReader;
-    this._client = client;
-    this._state = state;
-  }
-
-  /** Sets the Anytype space configuration. Must be called before syncing. */
+  private spaceConfig: SpaceConfig | null = null;
+  constructor(
+    private reader: ItemReader,
+    private client: AnytypeClient,
+    private state: SyncState,
+    private pdfSync = new PdfSync(),
+  ) {}
   setSpaceConfig(config: SpaceConfig): void {
-    this._spaceConfig = config;
+    this.spaceConfig = config;
   }
 
-  /**
-   * Syncs a single Zotero item to Anytype.
-   *
-   * - If no Anytype object exists: creates one with the full annotation body.
-   * - If an object exists: fetches the current body, finds annotations not yet
-   *   present (by key), and appends them. No-ops if nothing new.
-   *
-   * All errors are caught and logged so a single item failure never aborts a
-   * full sync batch.
-   */
-  async syncItem(zoteroItemId: number): Promise<void> {
-    if (!this._spaceConfig) {
-      ztoolkit.log(
-        "SyncEngine: no space config, skipping sync for",
-        zoteroItemId,
-      );
+  /** Serialize manual and event-driven sync to avoid competing creates. */
+  async syncItem(id: number): Promise<void> {
+    const run = queue.catch(() => {}).then(() => this.sync(id));
+    queue = run;
+    return run;
+  }
+
+  private async sync(id: number): Promise<void> {
+    if (!this.spaceConfig) throw new Error("Configure AnyTero before syncing");
+    const raw = Zotero.Items.get(id);
+    if (
+      !AnyTeroCollectionFilter.allows(
+        raw,
+        AnyTeroCollectionFilter.collectionIds(),
+      )
+    )
       return;
-    }
-
+    const item = this.reader.getItem(id);
+    if (!item) return;
+    const { spaceId, relations } = this.spaceConfig;
+    let objectId = this.state.getObjectId(item.key);
+    let fresh = false;
     try {
-      const item = this._itemReader.getItem(zoteroItemId);
-      if (!item) {
-        ztoolkit.log("SyncEngine: item not found", zoteroItemId);
-        return;
-      }
-
-      const annotations = this._itemReader.getAnnotations(item.id);
-      const { spaceId, relations } = this._spaceConfig;
-      // TODO: extract zotero URL construction into helper functions
-      const expectedZoteroLink = `zotero://select/library/items/${item.key}`;
-
-      // Validate the tracked Anytype object (if any): it must exist, not be
-      // archived, and have the correct Zotero Link property. If any check
-      // fails, discard the stale state entry and fall through to create.
-      let trackedObjectId = this._state.getObjectId(item.key);
-      let existingBody = "";
-
-      if (trackedObjectId) {
+      if (objectId) {
         try {
-          const existing = await this._client.getObject(
-            spaceId,
-            trackedObjectId,
-          );
-          const isArchived = existing.archived;
-          const zoteroLinkProp = existing.properties.find(
-            (p) => p.key === relations.zoteroLink,
-          );
-          const hasCorrectLink = zoteroLinkProp?.url === expectedZoteroLink;
-
-          if (isArchived || !hasCorrectLink) {
-            ztoolkit.log(
-              "SyncEngine: tracked object invalid for",
-              item.key,
-              "(archived:",
-              isArchived,
-              ", correct link:",
-              hasCorrectLink,
-              ") — recreating",
-            );
-            this._state.remove(item.key);
-            trackedObjectId = null;
+          const existing = await this.client.getObject(spaceId, objectId);
+          if (existing.archived === true) {
+            this.state.remove(item.key);
+            objectId = null;
           } else {
-            existingBody = existing.markdown;
+            if (!Array.isArray(existing.properties))
+              throw new Error(
+                "Existing page response did not return properties; mapping retained",
+              );
+            const relation = existing.properties.find(
+              (p) => p.key === relations.zoteroLink,
+            );
+            if (relation?.url !== `zotero://select/library/items/${item.key}`)
+              throw new Error(
+                "Tracked Anytype paper has an unexpected Zotero link; refusing to create another page",
+              );
           }
-        } catch (e) {
-          ztoolkit.log(
-            "SyncEngine: failed to fetch tracked object for",
-            item.key,
-            "— recreating:",
-            e,
-          );
-          this._state.remove(item.key);
-          trackedObjectId = null;
+        } catch (error) {
+          if (
+            !(error instanceof AnytypeHttpError) ||
+            ![404, 410].includes(error.status)
+          )
+            throw error;
+          // A missing space must not be mistaken for a missing paper.
+          const spaces = await this.client.listSpaces();
+          if (!spaces.some((space) => space.id === spaceId))
+            throw new Error(
+              "Destination space is unavailable; mapping retained",
+            );
+          this.state.remove(item.key);
+          objectId = null;
         }
       }
-
-      if (trackedObjectId !== null) {
-        // Incremental update: append only annotations not yet in the body.
-        // Key-based detection is reliable for all annotation types (including
-        // image/ink which have no text) since each key always appears in its link URL.
-        const newAnnotations = annotations.filter(
-          (ann) => !existingBody.includes(ann.key),
+      if (!objectId) {
+        objectId = await this.client.createObject(
+          spaceId,
+          toCreatePayload(item, "", this.spaceConfig),
         );
-
-        if (newAnnotations.length === 0) {
-          ztoolkit.log("SyncEngine: no new annotations for", item.key);
-          return;
-        }
-
-        const body = appendAnnotations(existingBody, newAnnotations);
-        await this._client.updateObject(spaceId, trackedObjectId, {
-          markdown: body,
-        });
-        ztoolkit.log(
-          "SyncEngine: updated object",
-          trackedObjectId,
-          "for item",
-          item.key,
-        );
-      } else {
-        const body = appendAnnotations("", annotations);
-        const payload = toCreatePayload(item, body, this._spaceConfig);
-        const objectId = await this._client.createObject(spaceId, payload);
-        this._state.set(item.key, objectId);
-        ztoolkit.log(
-          "SyncEngine: created object",
-          objectId,
-          "for item",
-          item.key,
-        );
+        this.state.set(item.key, objectId);
+        fresh = true;
+        PdfStatus.report(`Created empty Anytype paper: ${item.title}`);
       }
-    } catch (e) {
-      ztoolkit.log("SyncEngine: error syncing item", zoteroItemId, e);
-    }
-  }
-
-  /**
-   * Deletes the Anytype object for a removed Zotero item and clears the sync
-   * state entry. No-ops if no object is tracked for the given key.
-   */
-  async deleteItem(zoteroItemKey: string): Promise<void> {
-    if (!this._spaceConfig) return;
-
-    const objectId = this._state.getObjectId(zoteroItemKey);
-    if (!objectId) return;
-
-    try {
-      await this._client.deleteObject(this._spaceConfig.spaceId, objectId);
-      this._state.remove(zoteroItemKey);
-      ztoolkit.log(
-        "SyncEngine: deleted object",
-        objectId,
-        "for item",
-        zoteroItemKey,
+      await this.pdfSync.sync(item, this.client, spaceId, objectId, fresh);
+    } catch (error) {
+      PdfStatus.report(
+        `${item.title}: ${error instanceof Error ? error.message : "Synchronization failed"}`,
+        true,
       );
-    } catch (e) {
-      ztoolkit.log("SyncEngine: error deleting item", zoteroItemKey, e);
+      throw error;
     }
   }
 
-  /**
-   * Syncs all Zotero items with annotations. After syncing, prunes sync state
-   * entries for items that no longer exist in the Zotero library.
-   *
-   * @param onProgress - Optional callback invoked after each item with the
-   *   current and total counts.
-   * @returns The number of items processed.
-   */
+  /** Never delete research pages in response to Zotero deletion. */
+  async deleteItem(_key: string): Promise<void> {}
+
   async fullSync(onProgress?: ProgressCallback): Promise<number> {
-    if (!this._spaceConfig) {
-      ztoolkit.log("SyncEngine: no space config, skipping full sync");
-      return 0;
-    }
-
-    const items = await this._itemReader.getAllItemsWithAnnotations();
-    const total = items.length;
+    if (!this.spaceConfig) throw new Error("Configure AnyTero before syncing");
+    const items = await this.reader.getAllItemsWithAnnotations();
     let current = 0;
-
-    ztoolkit.log("AnyTero: syncing " + total + " items.");
+    let failures = 0;
     for (const item of items) {
-      await this.syncItem(item.id);
-      current++;
-      onProgress?.({ current, total });
-    }
-
-    // Prune state entries for items no longer in Zotero
-    const allState = this._state.getAll();
-    const activeKeys = new Set(items.map((i) => i.key));
-    // TODO: make this a function of SyncEngine
-    for (const key of Object.keys(allState)) {
-      if (!activeKeys.has(key)) {
-        ztoolkit.log("SyncEngine: pruning stale state entry for", key);
-        this._state.remove(key);
+      try {
+        await this.syncItem(item.id);
+      } catch {
+        failures++;
       }
+      current++;
+      onProgress?.({ current, total: items.length });
     }
-
+    PdfStatus.report(
+      `Batch finished: ${current} paper(s), ${failures} failure(s).`,
+      failures > 0,
+    );
     return current;
   }
 }

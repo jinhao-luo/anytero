@@ -19,6 +19,8 @@ import { SpaceBoot } from "./modules/anytype/spaceBoot";
 import { SyncEngine } from "./modules/sync/syncEngine";
 import { SyncState } from "./modules/sync/syncState";
 import { createZToolkit } from "./utils/ztoolkit";
+import { AnyTeroCollectionFilter } from "./modules/zotero/collectionFilter";
+import { PdfStatus } from "./modules/sync/pdfStatus";
 
 /**
  * Called by `bootstrap.js` once Zotero is fully initialised.
@@ -107,9 +109,47 @@ async function onPrefsEvent(type: string, data: { [key: string]: unknown }) {
   switch (type) {
     case "load":
       addon.data.prefsWindow = data.window as Window;
+      _populateCollectionDropdown();
+      PdfStatus.report(PdfStatus.current);
       await _populateSpaceDropdown();
       await _populateObjectTypeDropdown();
       break;
+    case "collectionChange": {
+      const menu = addon.data.prefsWindow?.document.getElementById(
+        "anytero-pref-collection",
+      ) as HTMLSelectElement | null;
+      Zotero.Prefs.set(
+        `${config.prefsPrefix}.collectionId`,
+        menu?.value || "",
+        true,
+      );
+      break;
+    }
+    case "modeChange":
+      await _initSyncIfConfigured();
+      break;
+    case "copyStatus":
+      Zotero.Utilities.Internal.copyTextToClipboard(
+        PdfStatus.history.join("\n"),
+      );
+      break;
+    case "testSelectedPDF": {
+      try {
+        await _initSyncIfConfigured();
+        if (!addon.data.syncEngine) throw new Error("Configure AnyTero first");
+        const selected = Zotero.getActiveZoteroPane()?.getSelectedItems() || [];
+        if (selected.length !== 1)
+          throw new Error("Select exactly one paper or PDF in Zotero");
+        let paper = selected[0];
+        while (paper?.parentID) paper = Zotero.Items.get(paper.parentID);
+        if (!paper || paper.isNote())
+          throw new Error("Select a paper with a PDF");
+        await addon.data.syncEngine.syncItem(paper.id);
+      } catch (error) {
+        PdfStatus.report(String(error), true);
+      }
+      break;
+    }
     case "spaceChange": {
       // Clear the stale object type selection so the user must re-pick one for
       // the newly selected space.
@@ -140,6 +180,8 @@ async function onPrefsEvent(type: string, data: { [key: string]: unknown }) {
  * times; a new stack replaces the old one.
  */
 async function _initSyncIfConfigured(): Promise<void> {
+  addon.data.notifierListener?.unregister();
+  addon.data.syncEngine = undefined;
   const apiKey = Zotero.Prefs.get(
     `${config.prefsPrefix}.apiKey`,
     true,
@@ -181,7 +223,9 @@ async function _initSyncIfConfigured(): Promise<void> {
 
   if (syncMode === "realtime") {
     const listener = new NotifierListener(
-      (itemId) => engine.syncItem(itemId),
+      (itemId) => {
+        void engine.syncItem(itemId).catch(() => {});
+      },
       (itemKey) => engine.deleteItem(itemKey),
     );
     listener.register();
@@ -361,7 +405,7 @@ async function _runSetupWizard(): Promise<void> {
     // Clear sync state so stale Anytype object IDs from a previous setup
     // (possibly a different space or object type) don't linger. A subsequent
     // full sync will repopulate the state from scratch.
-    new SyncState().clear();
+    // Preserve mappings from the reference XPI when setup/collection settings change.
 
     addon.data.notifierListener?.unregister();
     await _initSyncIfConfigured();
@@ -385,6 +429,7 @@ async function _runSetupWizard(): Promise<void> {
  * see the final count or any error message.
  */
 async function _runFullSync(): Promise<void> {
+  await _initSyncIfConfigured();
   const engine = addon.data.syncEngine;
   if (!engine) {
     ztoolkit.log("AnyTero: sync engine not ready, configure the plugin first");
@@ -428,6 +473,45 @@ async function _runFullSync(): Promise<void> {
     progressWin.startCloseTimer(8000);
     ztoolkit.log("AnyTero: full sync failed", e);
   }
+}
+
+/** Populate the same personal-library collection selector used by the reference XPI. */
+function _populateCollectionDropdown(): void {
+  const doc = addon.data.prefsWindow?.document;
+  const popup = doc?.getElementById("anytero-pref-collection-popup");
+  if (!doc || !popup) return;
+  popup.replaceChildren();
+  const collections = Zotero.Collections.getByLibrary(
+    Zotero.Libraries.userLibraryID,
+    true,
+  );
+  const add = (id: string, name: string) => {
+    const option = doc.createElementNS(
+      "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul",
+      "menuitem",
+    );
+    option.setAttribute("value", id);
+    option.setAttribute("label", name);
+    popup.appendChild(option);
+  };
+  add("", "Select collection (sync disabled)");
+  const byId = new Map(collections.map((c) => [c.id, c]));
+  for (const collection of collections) {
+    const names = [collection.name];
+    const seen = new Set([collection.id]);
+    let parent = collection.parentID;
+    while (parent && byId.has(parent) && !seen.has(parent)) {
+      seen.add(parent);
+      const ancestor = byId.get(parent)!;
+      names.unshift(ancestor.name);
+      parent = ancestor.parentID;
+    }
+    add(String(collection.id), names.join(" / "));
+  }
+  const menu = doc.getElementById(
+    "anytero-pref-collection",
+  ) as HTMLSelectElement | null;
+  if (menu) menu.value = String(AnyTeroCollectionFilter.selectedId() ?? "");
 }
 
 export default {
